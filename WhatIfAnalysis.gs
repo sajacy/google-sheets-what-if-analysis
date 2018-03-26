@@ -1,52 +1,64 @@
+var DATATABLE_KEY = 'dt_';
+
+function sssonInstall(e) {
+  onOpen(e);
+}
+
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('What-If Analysis')
-  .addSubMenu(ui.createMenu("Data Tables")
-              .addItem('Create', 'create_')
-              .addItem('Refresh', 'refresh_'))
-      .addToUi();
+    .addItem('Create Data Table', 'create_')
+    .addItem('Refresh Data Tables', 'refresh_')
+    .addItem('Help', 'help_')
+    .addToUi();
   
   // initialize document state for datatables
-  PropertiesService.getDocumentProperties().setProperty("dt_", PropertiesService.getDocumentProperties().getProperty("dt_") || "{}");
+  PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY) || "{}");
+}
+
+function help_() {
+  SpreadsheetApp.getUi().alert("Selected range must be at least 2x2: input values on left column (and top row, in the case of a 2D datatable), the model output at the top-left, and table values to the bottom-right.");
 }
 
 function create_() {
-  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty("dt_"));
+  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY));
   var ui = SpreadsheetApp.getUi();
   var dt_range = SpreadsheetApp.getActiveRange();
   var config = false;
   
   if (dt_range.getNumColumns() < 2) {
-    ui.alert("Range must be at least 2x2: input values on left column (and top row, for 2D datatable) and output values to the right / bottom");
+    help_();
   } else if (dt_range.getNumColumns() > 2) {
     // 2D data-table: row and column inputs
     // TODO: validate OK and CANCEL user flows
-    var result_rowinput = ui.prompt("Select Model Row Input", "Specify the the row input cell", ui.ButtonSet.OK_CANCEL);
-    var result_colinput = ui.prompt("Select Model Column Input", "Specify the column input cell", ui.ButtonSet.OK_CANCEL);
+    var result_rowinput = ui.prompt("Specify Model Row Input", 'Specify the row input cell\nFor example, enter "A2" to set cell A2 with the values in the top row.', ui.ButtonSet.OK_CANCEL);
+    var result_colinput = ui.prompt("Specify Model Column Input", 'Specify the column input cell\nFor example, enter "A4" to set cell A4 with the values in the left column.', ui.ButtonSet.OK_CANCEL);
     var output2d = dt_range.getCell(1,1);
     var rowinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_rowinput.getResponseText());
     var colinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_colinput.getResponseText());
     config = { "range": dt_range.getA1Notation(), "output": output2d.getA1Notation(), "rowinput": rowinput.getA1Notation(), "colinput": colinput.getA1Notation() };
   } else {
     // column inputs only
-    var result_input = ui.prompt("Select Model Input", "Specify the (column) input cell", ui.ButtonSet.OK_CANCEL);
+    var result_input = ui.prompt('Specify Model Input', 'Specify the (column) input cell.\nFor example, enter "A2" to set cell A2 with the values in the left column.', ui.ButtonSet.OK_CANCEL);
     var input = SpreadsheetApp.getActiveSpreadsheet().getRange(result_input.getResponseText());
     var output = dt_range.getCell(1,2);
     config = { "range": dt_range.getA1Notation(), "output": output.getA1Notation(), "rowinput": null, "colinput": input.getA1Notation() };
   }
-  
-  // actually do the work now:
-  datatables_(config);
 
-  // save named range and property to be able to refresh data
-  var name = "DataTable_" + dt_range.getA1Notation().replace(/[^A-Z0-9]/g,"");
-  SpreadsheetApp.getActive().setNamedRange(name, dt_range);
-  dt_[name] = config;
-  PropertiesService.getDocumentProperties().setProperty("dt_", JSON.stringify(dt_));  
+  if (config) {
+    // actually do the work now:
+    datatables_(config);
+    
+    // save named range and property to be able to refresh data
+    var name = "DataTable_" + dt_range.getA1Notation().replace(/[^A-Z0-9]/g,"");
+    SpreadsheetApp.getActive().setNamedRange(name, dt_range);
+    dt_[name] = config;
+    PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
+  }
 }
 
 function refresh_() {
-  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty("dt_"));
+  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY));
   var ranges = SpreadsheetApp.getActive().getNamedRanges();
   for (var i = 0; i < ranges.length; i++) {
     var name = ranges[i].getName();
@@ -66,7 +78,7 @@ function refresh_() {
       delete dt_[name];
     }
   }
-  PropertiesService.getDocumentProperties().setProperty("dt_", JSON.stringify(dt_));
+  PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
 }
 
 function datatables_(config) {
