@@ -1,6 +1,6 @@
 var DATATABLE_KEY = 'dt_';
 
-function sssonInstall(e) {
+function onInstall(e) {
   onOpen(e);
 }
 
