@@ -5,6 +5,19 @@ Replicates the Excel "What-If Analysis" feature, **Data Tables**.
 
 In the future, I may add the other Excel features, e.g. **Scenarios**.
 
+### Manual Installation*
+
+You can simply copy the contents of the [`WhatIfAnalysis.gs`](WhatIfAnalysis.gs) file into a new script.
+
+Step-by-step:
+
+1. Within your Google Sheet, open the Script Editor (Tools > Script Editor)
+2. Create a new script file, named WhatIfAnalysis.gs (File > New > Script file)
+3. Paste the code from [`WhatIfAnalysis.gs`](WhatIfAnalysis.gs)
+4. Save the script file (File > Save).
+5. Reload your Google Sheet. 
+
+\* This project is currently pending review as an Add-On. Hopefully, in the future, you can simply search for "What-If Analysis" in the Add-Ons store (in Google Sheets: Add-Ons > Get Add-Ons).
 
 ### Usage
 
