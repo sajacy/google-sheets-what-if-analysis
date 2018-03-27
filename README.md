@@ -21,7 +21,7 @@ Step-by-step:
 
 ### Usage
 
-After installing the add-on, you should have a menu item **What-If Analysis > Data Table > Create**.
+After installing the add-on, you should have a menu item **What-If Analysis > Create Data Table**.
 
 This will try to create a data table from the currently-selected cell range.
 
@@ -40,7 +40,7 @@ in the first row, second-column, and the test values in the first column.
 
 For performance reasons, Data Tables are not recalculated automatically.
 
-Use the **What-If Analysis > Data Table > Refresh** menu item to refresh all data tables.
+Use the **What-If Analysis > Refresh Data Tables** menu item to refresh all data tables.
 
 You can also delete data tables by deleting the associated Named Range (**Data > Named Ranges**), 
 which will be named in the form of *DataTable_RxCy*.  The deleted cell range will no longer be 
