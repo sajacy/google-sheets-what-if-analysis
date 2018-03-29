@@ -5,9 +5,15 @@ Replicates the Excel "What-If Analysis" feature, **Data Tables**.
 
 In the future, I may add the other Excel features, e.g. **Scenarios**.
 
-### Manual Installation*
+### Install Add-On
 
-You can simply copy the contents of the [`WhatIfAnalysis.gs`](WhatIfAnalysis.gs) file into a new script.
+This project is available as an Add-On in the Chrome Web Store:
+
+[Install via Chrome Web Store](https://chrome.google.com/webstore/detail/what-if-analysis/plbdmkgogobniebdohfickjndnechhel)
+
+### Manual Installation
+
+Alternatively, you can copy the contents of the [`WhatIfAnalysis.gs`](WhatIfAnalysis.gs) file into a new script.
 
 Step-by-step:
 
@@ -17,15 +23,13 @@ Step-by-step:
 4. Save the script file (File > Save).
 5. Reload your Google Sheet. 
 
-\* This project is currently pending review as an Add-On. Hopefully, in the future, you can simply search for "What-If Analysis" in the Add-Ons store (in Google Sheets: Add-Ons > Get Add-Ons).
-
 ### Usage
 
 After installing the add-on, you should have a menu item **What-If Analysis > Create Data Table**.
 
 This will try to create a data table from the currently-selected cell range.
 
-For example, to create a 2-dimensional (2-variate) Data Table, you need to select a range
+For example, to create a 2-dimensional (bivariate) Data Table, you need to select a range
 where the model output (formula) is the top-left cell, and where the two sets of values
 are provided along the first row and first column.  The add-on will fill in the rest of the cells.
 
