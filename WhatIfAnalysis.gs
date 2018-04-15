@@ -36,13 +36,13 @@ function create_() {
     var output2d = dt_range.getCell(1,1);
     var rowinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_rowinput.getResponseText());
     var colinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_colinput.getResponseText());
-    config = { "range": dt_range.getA1Notation(), "output": output2d.getA1Notation(), "rowinput": rowinput.getA1Notation(), "colinput": colinput.getA1Notation() };
+    config = { "exists": null, "range": dt_range.getA1Notation(), "output": output2d.getA1Notation(), "rowinput": rowinput.getA1Notation(), "colinput": colinput.getA1Notation() };
   } else {
     // column inputs only
     var result_input = ui.prompt('Specify Model Input', 'Specify the (column) input cell.\nFor example, enter "A2" to set cell A2 with the values in the left column.', ui.ButtonSet.OK_CANCEL);
     var input = SpreadsheetApp.getActiveSpreadsheet().getRange(result_input.getResponseText());
     var output = dt_range.getCell(1,2);
-    config = { "range": dt_range.getA1Notation(), "output": output.getA1Notation(), "rowinput": null, "colinput": input.getA1Notation() };
+    config = { "exists": null, "range": dt_range.getA1Notation(), "output": output.getA1Notation(), "rowinput": null, "colinput": input.getA1Notation() };
   }
 
   if (config) {
@@ -62,7 +62,6 @@ function refresh_() {
   var ranges = SpreadsheetApp.getActive().getNamedRanges();
   for (var i = 0; i < ranges.length; i++) {
     var name = ranges[i].getName();
-    SpreadsheetApp.getUi().alert("Refreshing " + name);
     if (dt_[name]) {
       // book-keeping for cleanup
       dt_[name].exists = true;
@@ -77,6 +76,8 @@ function refresh_() {
     if (!dt_[keys[i]].exists) {
       delete dt_[name];
     }
+    else
+      dt_[keys[i]].exists = null;
   }
   PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
 }
