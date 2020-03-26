@@ -36,13 +36,13 @@ function create_() {
     var output2d = dt_range.getCell(1,1);
     var rowinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_rowinput.getResponseText());
     var colinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_colinput.getResponseText());
-    config = { "range": dt_range.getA1Notation(), "output": output2d.getA1Notation(), "rowinput": rowinput.getA1Notation(), "colinput": colinput.getA1Notation() };
+    config = { "range": dt_range.getA1Notation(), "output": output2d.getA1Notation(), "rowinput": result_rowinput.getResponseText(), "colinput": result_colinput.getResponseText() };
   } else {
     // column inputs only
     var result_input = ui.prompt('Specify Model Input', 'Specify the (column) input cell.\nFor example, enter "A2" to set cell A2 with the values in the left column.', ui.ButtonSet.OK_CANCEL);
     var input = SpreadsheetApp.getActiveSpreadsheet().getRange(result_input.getResponseText());
     var output = dt_range.getCell(1,2);
-    config = { "range": dt_range.getA1Notation(), "output": output.getA1Notation(), "rowinput": null, "colinput": input.getA1Notation() };
+    config = { "range": dt_range.getA1Notation(), "output": output.getA1Notation(), "rowinput": null, "colinput": result_input.getResponseText() };
   }
 
   if (config) {
