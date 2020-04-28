@@ -33,12 +33,67 @@ For example, to create a 2-dimensional (bivariate) Data Table, you need to selec
 where the model output (formula) is the top-left cell, and where the two sets of values
 are provided along the first row and first column.  The add-on will fill in the rest of the cells.
 
-![2d](doc/2d_datatable.png)
+Before (example):
 
-To create a univariate Data Table, select 2 columns, with the model output (formula)
-in the first row, second-column, and the test values in the first column.
+| **2D (bivariate) Data Table** |    |    |    |    |
+| --------------- | -- | -- | -- | -- |
+| rowinput       | 2  |    |    |    |
+| colinput       | 10 |    |    |    |
+| model output  (=rowinput+2*colinput):          | **22** | 10 | 20 | 30 |
+|                 | 1  |  |  |  |
+|                 | 2  |  |  |  |
+|                 | 3  |  |  |  |
+|                 | 4  |  |  |  |
 
-![1d](doc/columnar.png)
+After (example):
+
+| **2D (bivariate) Data Table** |    |    |    |    |
+| --------------- | -- | -- | -- | -- |
+| rowinput       | 2  |    |    |    |
+| colinput       | 10 |    |    |    |
+| model output  (=rowinput+2*colinput):          | **22** | 10 | 20 | 30 |
+|                 | 1  | 21 | 41 | 61 |
+|                 | 2  | 22 | 42 | 62 |
+|                 | 3  | 23 | 43 | 63 |
+|                 | 4  | 24 | 44 | 64 |
+
+
+
+To create a univariate Data Table, select 2 columns, with the model output (i.e. a formula; or a reference to a cell with the model output) in the first row, second-column (), and the test values in the first column.
+
+Before (example):
+
+| Univariate Data Table   |                     |
+| ----------------------- | ------------------- |
+|                         | input:              |
+|                         | 50000               |
+|                         | output (=input\*2): |
+| Test input value column | **100000**              |
+| 20000                   |                     |
+| 50000                   |                     |
+| 75000                   |                     |
+| 100000                  |                     |
+| 150000                  |                     |
+| 200000                  |                     |
+| 300000                  |                     |
+| 500000                  |
+
+
+After (example):
+| Univariate Data Table   |                     |
+| ----------------------- | ------------------- |
+|                         | input:              |
+|                         | 50000               |
+|                         | output (=input\*2): |
+| Test input value column | **100000**              |
+| 20000                   | 40000               |
+| 50000                   | 100000              |
+| 75000                   | 150000              |
+| 100000                  | 200000              |
+| 150000                  | 300000              |
+| 200000                  | 400000              |
+| 300000                  | 600000              |
+| 500000                  | 1000000             |
 
 ### Data Refresh
 
