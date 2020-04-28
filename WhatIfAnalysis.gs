@@ -17,7 +17,20 @@ function onOpen() {
 }
 
 function help_() {
-  SpreadsheetApp.getUi().alert("Selected range must be at least 2x2: input values on left column (and top row, in the case of a 2D datatable), the model output at the top-left, and table values to the bottom-right.");
+  SpreadsheetApp.getUi().alert(`
+    Selected range must be at least 2 columns.
+                               
+    For a univariat Data Table (1 input variable):
+    Top left cell can contain any text column header for the test values which need to follow downwards on the same leftmost column. The header for the second column needs to be a formula giving the model output (based on the input variable), or reference a cell with the model output.
+      
+    For a 2D (bivariat) Data Table (2 input variables):
+    Top left cell needs to be a formula giving the model output (based on the input variables), or reference a cell with the model output. Furthermore, the leftmost column needs to have the various test values (for the row input variable) listed downwards. Also, the topmost row needs to have more than 1 column in addition to the leftmost column, and they need to contain test values (for the column input variable).
+    
+    WhatIfAnalysis will in both cases fill in the remaining part of the matrix. It will insert test values into the cells which you specify as input variable(s), and fill in the matrix with the corresponding model output results.
+    
+    NB:
+    For simple models then WhatIfAnalysis is not needed, and results can be obtained much faster with repeating formula normally throughout the matrix. For a bivariat Data Table (starting at top left cell A1) based on for instance a model like =(ROW_VARIABLE_CELL + COL_VARIABLE_CELL * 2), then the formula =$A2+B$1*2 could be input to B3 (cell 2,2 in the matrix) and dragged downwards to fill the entire first column, and then dragged to the right, to fill the entire matrix.
+  `);
 }
 
 function create_() {
@@ -87,7 +100,9 @@ function datatables_(config) {
   var dt_range = s.getRange(config.range);
   
   if (!config.rowinput) {
-    // For a Univariate Data Table (2 columns)
+    // For a Univariate Data Table (1 test value).
+    // Such a Data Table is here used when there is only 1 column with output results.
+    // The selected range matrix should have exactly 2 columns: 1 for test input values, and 1 for output results.
     var input = s.getRange(config.colinput);
     var original = input.getValue();
     var output = s.getRange(config.output);
@@ -117,7 +132,10 @@ function datatables_(config) {
     input.setValue(original);
     
   } else {
-    // For a 2D (bivariate) Data Table
+    // For a 2D (bivariate) Data Table (2 test values).
+    // Such a Data Table is here used when there are 2 or more more columns with output results.
+    // The selected range matrix should have 3 or more columns: 1 column for row test input values, plus 2 or more columns for column test input values.
+    // Outputs will be filled into the remainding cells in the matrix, using the corresponding row and column test input values.
     var colinput = s.getRange(config.colinput);
     var rowinput = s.getRange(config.rowinput);
     var colOriginal = colinput.getValue();
