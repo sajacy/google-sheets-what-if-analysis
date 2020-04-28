@@ -101,8 +101,8 @@ function datatables_(config) {
     var output = s.getRange(config.output);
     for (var i = 2; i <= dt_range.getNumRows(); i++) { 
       for (var j = 2; j <= dt_range.getNumColumns(); j++) {
-        colinput.setValue(dt_range.getCell(i, 1).getValue());
-        rowinput.setValue(dt_range.getCell(1, j).getValue());
+        rowinput.setValue(dt_range.getCell(i, 1).getValue());
+        colinput.setValue(dt_range.getCell(1, j).getValue());
         dt_range.getCell(i, j).setValue(output.getValue());
       }
     }
