@@ -51,7 +51,7 @@ function create_() {
     
     // save named range and property to be able to refresh data
     var name = "DataTable_" + dt_range.getA1Notation().replace(/[^A-Z0-9]/g,"");
-    SpreadsheetApp.getActive().setNamedRange(name, dt_range);
+    SpreadsheetApp.getActiveSpreadsheet().setNamedRange(name, dt_range);
     dt_[name] = config;
     PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
   }
@@ -59,7 +59,7 @@ function create_() {
 
 function refresh_() {
   var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY));
-  var ranges = SpreadsheetApp.getActive().getNamedRanges();
+  var ranges = SpreadsheetApp.getActiveSpreadsheet().getNamedRanges();
   for (var i = 0; i < ranges.length; i++) {
     var name = ranges[i].getName();
     if (dt_[name]) {
@@ -81,31 +81,86 @@ function refresh_() {
 }
 
 function datatables_(config) {
-  var s = SpreadsheetApp.getActive();
+  // Note: We use getActiveSheet() instead of getActiveSpreadsheet() here,
+  // because of its expanded getRange() methods.
+  var s = SpreadsheetApp.getActiveSheet();
   var dt_range = s.getRange(config.range);
+  
   if (!config.rowinput) {
+    // For a Univariate Data Table (2 columns)
     var input = s.getRange(config.colinput);
     var original = input.getValue();
     var output = s.getRange(config.output);
-    for (var i = 2; i <= dt_range.getNumRows(); i++) { 
-      input.setValue(dt_range.getCell(i, 1).getValue());
-      dt_range.getCell(i, 2).setValue(output.getValue());
+    
+    var topleft_cell = dt_range.getCell(1,1);
+    var dt_range_to_be_set = s.getRange(topleft_cell.getRow()+1, topleft_cell.getColumn()+1, dt_range.getNumRows()-1, dt_range.getNumColumns()-1);
+    
+    // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
+    var test_values_length = dt_range.getNumRows()-1;
+    var test_values_array = s.getRange(topleft_cell.getRow()+1, topleft_cell.getColumn(), test_values_length, 1).getValues();
+    var output_values = new Array(test_values_length);
+    // Iterating over both test_values_array and output_values at the same time,
+    // using the fact that they were created above with the same length.
+    for (var i = 0; i < test_values_length; i++) {
+      input.setValue(test_values_array[i]);
+      // ...
+      // Here the spreadsheet formulas will do their thing in the spreadsheet behind the scenes, calculating the output value.
+      // ...
+      // Must use [] around the value here, to make the output_values array into a matrix,
+      // since the dt_range_to_be_set later requires a matrix as input.
+      output_values[i] = [output.getValue()];
     }
+    
+    // Set all the output values at once in the spreadsheet, now when all the tests are complete.
+    dt_range_to_be_set.setValues(output_values);
+    // Reset the input value
     input.setValue(original);
+    
   } else {
-    // 2D
+    // For a 2D (bivariate) Data Table
     var colinput = s.getRange(config.colinput);
     var rowinput = s.getRange(config.rowinput);
     var colOriginal = colinput.getValue();
     var rowOriginal = rowinput.getValue();
     var output = s.getRange(config.output);
-    for (var i = 2; i <= dt_range.getNumRows(); i++) { 
-      for (var j = 2; j <= dt_range.getNumColumns(); j++) {
-        rowinput.setValue(dt_range.getCell(i, 1).getValue());
-        colinput.setValue(dt_range.getCell(1, j).getValue());
-        dt_range.getCell(i, j).setValue(output.getValue());
+    
+    var topleft_cell = dt_range.getCell(1,1);
+    var num_rows = dt_range.getNumRows();
+    var num_columns = dt_range.getNumColumns();
+    
+    var row_test_values_array = s.getRange(
+      topleft_cell.getRow()+1,
+      topleft_cell.getColumn(),
+      num_rows-1,
+      1
+    ).getValues().flat();
+    
+    var col_test_values_array = s.getRange(
+      topleft_cell.getRow(),
+      topleft_cell.getColumn()+1,
+      1,
+      num_columns-1
+    ).getValues()[0];
+    
+    // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
+    var dt_range_to_be_set = s.getRange(
+      topleft_cell.getRow()+1,
+      topleft_cell.getColumn()+1,
+      num_rows-1,
+      num_columns-1
+    );
+    var output_values = dt_range_to_be_set.getValues();
+    for (var i = 0; i < output_values.length; i++) { 
+      for (var j = 0; j < output_values[0].length; j++) {
+        rowinput.setValue(row_test_values_array[i]);
+        colinput.setValue(col_test_values_array[j]);
+        output_values[i][j] = output.getValue();
       }
     }
+    
+    dt_range_to_be_set.setValues(output_values);
+    
+    // Reset the input values
     colinput.setValue(colOriginal);
     rowinput.setValue(rowOriginal);
   }
