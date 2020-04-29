@@ -107,12 +107,23 @@ function datatables_(config) {
     var original = input.getValue();
     var output = s.getRange(config.output);
     
-    var topleft_cell = dt_range.getCell(1,1);
-    var dt_range_to_be_set = s.getRange(topleft_cell.getRow()+1, topleft_cell.getColumn()+1, dt_range.getNumRows()-1, dt_range.getNumColumns()-1);
+    var topleft_cell_row = dt_range.getCell(1,1).getRow();
+    var topleft_cell_col = dt_range.getCell(1,1).getColumn();
+    var dt_range_to_be_set = s.getRange(
+      topleft_cell_row+1,
+      topleft_cell_col+1,
+      dt_range.getNumRows()-1,
+      dt_range.getNumColumns()-1
+    );
     
     // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
     var test_values_length = dt_range.getNumRows()-1;
-    var test_values_array = s.getRange(topleft_cell.getRow()+1, topleft_cell.getColumn(), test_values_length, 1).getValues().flat();
+    var test_values_array = s.getRange(
+      topleft_cell_row+1,
+      topleft_cell_col,
+      test_values_length,
+      1
+    ).getValues().flat();
     var output_values = new Array(test_values_length);
     // Iterating over both test_values_array and output_values at the same time,
     // using the fact that they were created above with the same length.
@@ -142,28 +153,29 @@ function datatables_(config) {
     var rowOriginal = rowinput.getValue();
     var output = s.getRange(config.output);
     
-    var topleft_cell = dt_range.getCell(1,1);
+    var topleft_cell_row = dt_range.getCell(1,1).getRow();
+    var topleft_cell_col = dt_range.getCell(1,1).getColumn();
     var num_rows = dt_range.getNumRows();
     var num_columns = dt_range.getNumColumns();
     
     var row_test_values_array = s.getRange(
-      topleft_cell.getRow()+1,
-      topleft_cell.getColumn(),
+      topleft_cell_row+1,
+      topleft_cell_col,
       num_rows-1,
       1
     ).getValues().flat();
     
     var col_test_values_array = s.getRange(
-      topleft_cell.getRow(),
-      topleft_cell.getColumn()+1,
+      topleft_cell_row,
+      topleft_cell_col+1,
       1,
       num_columns-1
     ).getValues()[0];
     
     // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
     var dt_range_to_be_set = s.getRange(
-      topleft_cell.getRow()+1,
-      topleft_cell.getColumn()+1,
+      topleft_cell_row+1,
+      topleft_cell_col+1,
       num_rows-1,
       num_columns-1
     );
