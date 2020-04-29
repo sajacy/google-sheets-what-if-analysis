@@ -112,7 +112,7 @@ function datatables_(config) {
     
     // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
     var test_values_length = dt_range.getNumRows()-1;
-    var test_values_array = s.getRange(topleft_cell.getRow()+1, topleft_cell.getColumn(), test_values_length, 1).getValues();
+    var test_values_array = s.getRange(topleft_cell.getRow()+1, topleft_cell.getColumn(), test_values_length, 1).getValues().flat();
     var output_values = new Array(test_values_length);
     // Iterating over both test_values_array and output_values at the same time,
     // using the fact that they were created above with the same length.
