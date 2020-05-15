@@ -41,9 +41,9 @@ Before (example):
 
 | **2D (bivariate) Data Table** |    |    |    |    |
 | --------------- | -- | -- | -- | -- |
-| rowinput       | 2  |    |    |    |
-| colinput       | 10 |    |    |    |
-| model output  (=rowinput+2*colinput):          | **22** | 10 | 20 | 30 |
+| first input     | 2  |    |    |    |
+| second input    | 10 |    |    |    |
+| model output  (=first+2*second):  | **22** | 10 | 20 | 30 |
 |                 | 1  |  |  |  |
 |                 | 2  |  |  |  |
 |                 | 3  |  |  |  |
@@ -53,15 +53,13 @@ After (example):
 
 | **2D (bivariate) Data Table** |    |    |    |    |
 | --------------- | -- | -- | -- | -- |
-| rowinput       | 2  |    |    |    |
-| colinput       | 10 |    |    |    |
-| model output  (=rowinput+2*colinput):          | **22** | 10 | 20 | 30 |
+| first input     | 2  |    |    |    |
+| second input    | 10 |    |    |    |
+| model output  (=first+2*second):  | **22** | 10 | 20 | 30 |
 |                 | 1  | 21 | 41 | 61 |
 |                 | 2  | 22 | 42 | 62 |
 |                 | 3  | 23 | 43 | 63 |
 |                 | 4  | 24 | 44 | 64 |
-
-
 
 To create a univariate Data Table, select 2 columns, with the model output (i.e. a formula; or a reference to a cell with the model output) in the first row, second-column (), and the test values in the first column.
 
