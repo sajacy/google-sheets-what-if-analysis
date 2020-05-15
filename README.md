@@ -23,6 +23,10 @@ Step-by-step:
 4. Save the script file (File > Save).
 5. Reload your Google Sheet. 
 
+### Example Sheet
+
+After installation, make a copy of the [2018 Tax Calculator](https://docs.google.com/spreadsheets/d/1kQ8y3DsnCilScNda1AIcV_-M7TIAWSkdlF__ceZ-W7U/edit?usp=sharing) sheet as a working example.
+
 ### Usage
 
 After installing the add-on, you should have a menu item **What-If Analysis > Create Data Table**.
