@@ -9,6 +9,7 @@ function onOpen(e) {
   ui.createMenu('What-If Analysis')
     .addItem('Create Data Table', 'create_')
     .addItem('Refresh Data Tables', 'refresh_')
+    .addItem('Delete All Data Tables', 'delete_')
     .addItem('Help', 'help_')
     .addToUi();
     
@@ -44,32 +45,38 @@ function help_() {
 
 function create_() {
   
-  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY));
+  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY)) || {};
   var ui = SpreadsheetApp.getUi();
   var dt_range = SpreadsheetApp.getActiveRange();
+  var selected_cols = dt_range.getNumColumns();
   var config = false;
   
-  if (dt_range.getNumColumns() < 2) {
+  if (selected_cols < 2) {
     help_();
-  } else if (dt_range.getNumColumns() > 2) {
-    // 2D data-table: row and column inputs
-    var result_colinput = ui.prompt("Specify Cell to Set with Values from Left Column", 'Specify the first input cell\nFor example, enter "A2" to set cell A2 with the values in the left column.', ui.ButtonSet.OK_CANCEL);
-    if (result_colinput.getSelectedButton() == ui.Button.OK) {
-      var result_rowinput = ui.prompt("Specify Cell to Set with Values from Top Row", 'Specify the second input cell\nFor example, enter "A4" to set cell A4 with the values in the top row.', ui.ButtonSet.OK_CANCEL);
-      if (result_rowinput.getSelectedButton() == ui.Button.OK) {
-        var output2d = dt_range.getCell(1,1);
-        var rowinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_rowinput.getResponseText());
-        var colinput = SpreadsheetApp.getActiveSpreadsheet().getRange(result_colinput.getResponseText());
-        config = { "range": dt_range.getA1Notation(), "output": output2d.getA1Notation(), "rowinput": result_rowinput.getResponseText(), "colinput": result_colinput.getResponseText() };
-      }
-    }
   } else {
-    // column inputs only
-    var result_input = ui.prompt('Specify Model Input', 'Specify the (column) input cell.\nFor example, enter "A2" to set cell A2 with the values in the left column.', ui.ButtonSet.OK_CANCEL);
-    if (result_input.getSelectedButton() == ui.Button.OK) {
-      var input = SpreadsheetApp.getActiveSpreadsheet().getRange(result_input.getResponseText());
-      var output = dt_range.getCell(1,2);
-      config = { "range": dt_range.getA1Notation(), "output": output.getA1Notation(), "rowinput": null, "colinput": result_input.getResponseText() };
+    // 2D data-table: row and column inputs
+    var result_colinput = ui.prompt("Cell to Set with Values from Left Column",
+                                    `Specify the column input cell
+                                     For example, enter "A2" to set cell A2 with the values in the left column.`, ui.ButtonSet.OK_CANCEL);
+    
+    if (result_colinput.getSelectedButton() == ui.Button.OK) {
+      SpreadsheetApp.getActiveSpreadsheet().getRange(result_colinput.getResponseText());
+      
+      if (selected_cols > 2) {
+        var result_rowinput = ui.prompt("Cell to Set with Values from Top Row", 
+                                        `Specify the row input cell.
+                                         For example, enter "Sheet1!A4" to set cell A4 on Sheet1 with the values in the top row.
+                                         Leave blank if the top row contains formulas for outputs.`, ui.ButtonSet.OK_CANCEL);
+        if (result_rowinput.getSelectedButton() == ui.Button.OK) {
+          if (result_rowinput.getResponseText()) {
+            // allow blank, but verify if non-blank
+            SpreadsheetApp.getActiveSpreadsheet().getRange(result_rowinput.getResponseText());
+          }
+          config = { "sheet": dt_range.getSheet().getName(), "range": dt_range.getA1Notation(), "rowinput": result_rowinput.getResponseText(), "colinput": result_colinput.getResponseText() };
+        }
+      } else {
+        config = { "sheet": dt_range.getSheet().getName(), "range": dt_range.getA1Notation(), "rowinput": null, "colinput": result_colinput.getResponseText() };
+      }
     }
   }
 
@@ -78,25 +85,38 @@ function create_() {
     datatables_(config);
     
     // save named range and property to be able to refresh data
-    var name = "DataTable_" + dt_range.getA1Notation().replace(/[^A-Z0-9]/g,"");
+    var topleft = dt_range.getA1Notation().split(":")[0];
+    var name = "DataTable_" + dt_range.getSheet().getName().replace(/[^A-Za-z0-9]/g,"") + "_" + topleft;
+
+/*
+   // cleanup old (pre-version 10) names
+    SpreadsheetApp.getActiveSpreadsheet().getNamedRanges().forEach(function(nr) {
+      if (nr.match(new RegExp("DataTable_" + topleft + "[^_]+$")) && dt_[nr]) {
+          SpreadsheetApp.getActiveSpreadsheet().removeNamedRange(nr);
+          delete dt_[nr];
+      }
+    });
+*/
+    
     SpreadsheetApp.getActiveSpreadsheet().setNamedRange(name, dt_range);
     dt_[name] = config;
+    
     PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
   }
 }
 
 function refresh_() {
-  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY));
+  var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY)) || {};
   var ranges = SpreadsheetApp.getActiveSpreadsheet().getNamedRanges();
   for (var i = 0; i < ranges.length; i++) {
     var name = ranges[i].getName();
-    if (dt_[name]) {
+    if (dt_ && dt_[name]) {
       // book-keeping for cleanup
       dt_[name].exists = true;
       // update the config if the range has been moved:
       var currentRange = ranges[i].getRange();
+      dt_[name].sheet = currentRange.getSheet().getName();
       dt_[name].range = currentRange.getA1Notation();
-      dt_[name].output = !!(dt_[name].rowinput) ? currentRange.getCell(1,1).getA1Notation() : currentRange.getCell(1,2).getA1Notation();
       // re-evaluate the configured datatable
       datatables_(dt_[name]);
     }
@@ -112,105 +132,66 @@ function refresh_() {
   PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
 }
 
+function delete_() {
+  var ui = SpreadsheetApp.getUi();
+  var responseButton = ui.alert('Are you sure?', 'Are you sure you want to delete all Data Tables?', ui.ButtonSet.YES_NO);
+  if (responseButton == ui.Button.YES) {
+    var dt_ = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY)) || {};
+    var keys = Object.keys(dt_);
+    for (var i = 0 ; i < keys.length; i++) {
+      if (SpreadsheetApp.getActiveSpreadsheet().getNamedRanges().indexOf(keys[i]) > -1) {
+        SpreadsheetApp.getActiveSpreadsheet().removeNamedRange(keys[i]);
+        delete dt_[keys[i]];
+      }
+    }
+    PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, JSON.stringify(dt_));
+  }
+}
+
 function datatables_(config) {
   // Note: We use getActiveSheet() instead of getActiveSpreadsheet() here,
   // because of its expanded getRange() methods.
-  var s = SpreadsheetApp.getActiveSheet();
+  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheet);
   var dt_range = s.getRange(config.range);
-  
-  if (!config.rowinput) {
-    // For a Univariate Data Table (1 test value).
-    // Such a Data Table is here used when there is only 1 column with output results.
-    // The selected range matrix should have exactly 2 columns: 1 for test input values, and 1 for output results.
-    var input = s.getRange(config.colinput);
-    var original = input.getValue();
-    var output = s.getRange(config.output);
-    
-    var topleft_cell_row = dt_range.getRow();
-    var topleft_cell_col = dt_range.getColumn();
-    var dt_range_to_be_set = s.getRange(
-      topleft_cell_row+1,
-      topleft_cell_col+1,
-      dt_range.getNumRows()-1,
-      dt_range.getNumColumns()-1
-    );
-    
-    // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
-    var test_values_length = dt_range.getNumRows()-1;
-    var test_values_array = s.getRange(
-      topleft_cell_row+1,
-      topleft_cell_col,
-      test_values_length,
-      1
-    ).getValues().flat();
-    var output_values = new Array(test_values_length);
-    // Iterating over both test_values_array and output_values at the same time,
-    // using the fact that they were created above with the same length.
-    for (var i = 0; i < test_values_length; i++) {
-      input.setValue(test_values_array[i]);
-      // ...
-      // Here the spreadsheet formulas will do their thing in the spreadsheet behind the scenes, calculating the output value.
-      // ...
-      // Must use [] around the value here, to make the output_values array into a matrix,
-      // since the dt_range_to_be_set later requires a matrix as input.
-      output_values[i] = [output.getValue()];
-    }
-    
-    // Set all the output values at once in the spreadsheet, now when all the tests are complete.
-    dt_range_to_be_set.setValues(output_values);
-    // Reset the input value
-    input.setValue(original);
-    
-  } else {
-    // For a 2D (bivariate) Data Table (2 test values).
-    // Such a Data Table is here used when there are 2 or more more columns with output results.
-    // The selected range matrix should have 3 or more columns: 1 column for row test input values, plus 2 or more columns for column test input values.
-    // Outputs will be filled into the remainding cells in the matrix, using the corresponding row and column test input values.
-    var colinput = s.getRange(config.colinput);
+  var range_row = dt_range.getRow();
+  var range_col = dt_range.getColumn();
+  var num_rows = dt_range.getNumRows();
+  var num_columns = dt_range.getNumColumns();
+  var output_values = [];
+
+  var colinput = s.getRange(config.colinput);
+  var colOriginal = colinput.getValue();
+  var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
+
+  if (config.rowinput) {
+    // bivariate
+    var output = s.getRange(range_row, range_col, 1, 1);
+    var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
     var rowinput = s.getRange(config.rowinput);
-    var colOriginal = colinput.getValue();
     var rowOriginal = rowinput.getValue();
-    var output = s.getRange(config.output);
-    
-    var topleft_cell_row = dt_range.getRow();
-    var topleft_cell_col = dt_range.getColumn();
-    var num_rows = dt_range.getNumRows();
-    var num_columns = dt_range.getNumColumns();
-    
-    var col_test_values_array = s.getRange(
-      topleft_cell_row+1,
-      topleft_cell_col,
-      num_rows-1,
-      1
-    ).getValues().flat();
-    
-    var row_test_values_array = s.getRange(
-      topleft_cell_row,
-      topleft_cell_col+1,
-      1,
-      num_columns-1
-    ).getValues()[0];
-    
-    // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
-    var dt_range_to_be_set = s.getRange(
-      topleft_cell_row+1,
-      topleft_cell_col+1,
-      num_rows-1,
-      num_columns-1
-    );
-    var output_values = dt_range_to_be_set.getValues();
-    for (var i = 0; i < output_values.length; i++) { 
-      for (var j = 0; j < output_values[i].length; j++) {
-        colinput.setValue(col_test_values_array[i]);
-        rowinput.setValue(row_test_values_array[j]);
+
+    for (var i = 0; i < col_test_values.length; i++) {
+      output_values[i] = []
+      for (var j = 0; j < row_test_values.length; j++) {
+        colinput.setValue(col_test_values[i]);
+        rowinput.setValue(row_test_values[j]);
         output_values[i][j] = output.getValue();
       }
     }
-    
-    dt_range_to_be_set.setValues(output_values);
-    
-    // Reset the input values
-    colinput.setValue(colOriginal);
-    rowinput.setValue(rowOriginal);
+    rowinput.setValue(rowOriginal); // reset row input value
+  } else {
+    // univariate, potentially multi-output
+    var output = s.getRange(range_row, range_col + 1, 1, num_columns - 1);
+    for (var i = 0; i < col_test_values.length; i++) { 
+      colinput.setValue(col_test_values[i]);
+      output_values[i] = output.getValues().flat();
+    }
   }
+
+  // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
+  var dt_range_to_be_set = s.getRange(range_row + 1, range_col + 1, num_rows - 1, num_columns - 1);
+  dt_range_to_be_set.setValues(output_values);
+
+  // Reset the input value
+  colinput.setValue(colOriginal);
 }
