@@ -1,0 +1,572 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,200,0,0" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open Sans|Roboto|Source Code Pro" />
+    
+    <style>
+    #header {
+      padding:10px;
+      margin: 0;
+      background-color: #4c8bf5; 
+      font: bold 16px/24px Roboto,Helvetica,Arial,sans-serif;
+      color: white;
+    }
+    
+    #header>div {
+      display: flex;
+      justify-content: space-between;
+    }
+
+   #datatables {
+      -moz-box-sizing: border-box;
+      box-sizing: border-box;
+      overflow-y: auto;
+      position: absolute;
+      width: 100%;
+      top: 44px;
+      bottom: 88px;
+      z-index: 1;
+    }
+
+    #advancedDt, #advancedDt[open] {
+      -moz-box-sizing: border-box;
+      box-sizing: border-box;
+      position: fixed !important;
+      top: auto;
+      bottom: 44px;
+      width: 100%;
+      background-color: #d6e6ffde;
+      border-top: 2px solid #4c8bf5;
+      z-index: 1000;
+    }
+
+    #message {
+      -moz-box-sizing: border-box;
+      box-sizing: border-box;
+      position: absolute;
+      bottom: 88px;
+      left: 0px;
+      width: 100%;
+      padding: 8px;
+      font: 12px/24px Roboto,Helvetica,Arial,sans-serif;
+      background-color: #ffe395;
+      display: none;
+      z-index: 999;
+    }
+
+    #message.active {
+      display: block;
+      overflow: hidden;
+      animation-duration: 1s;
+      animation-name: toast;
+    }
+
+    @keyframes toast {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    details summary.button {
+      margin: 8px;
+    }
+    
+    details[open] summary.button {
+      display:none;
+    }
+
+    .red {
+      text-transform: none !important;
+    }
+
+    details {
+      border-bottom:1px solid #ddd;
+      user-select: text;
+    }
+
+    details summary {
+      margin: 0;
+      background-color: #fff;
+      padding: 10px 12px 8px 12px;
+      font: 14px/24px Roboto,Helvetica,Arial,sans-serif;
+      cursor:pointer;
+      list-style: none;
+      user-select: none;                 
+    }
+    
+    details summary:hover {
+      background-color: #f3f3f3 !important;
+    }
+
+    details > summary::marker, /* Latest Chrome, Edge, Firefox */ 
+    details > summary::-webkit-details-marker /* Safari */ {
+      display: none;
+    }
+/*
+    details summary>i  {
+      position:absolute;
+      right:8px;
+      transition: all 0.25s linear;
+    }
+
+    details[open] summary>i {
+      transform:rotate(180deg);
+    }
+*/
+    details[open] {
+      -moz-box-sizing: border-box;
+      box-sizing: border-box;
+      overflow-y: auto;
+      position: absolute;
+      width: 100%;
+      top: 0px;
+      bottom: 0px;
+      z-index: 999;
+      background-color: #fff;
+    }
+
+    details[open] summary {
+      background-color: #d6e6ffde !important;
+      text-shadow: #666 0px 0px 1px;
+    }
+
+
+    details .editor {
+      box-sizing: border-box;
+      padding: 8px;
+      line-height: 0px;
+      overflow: hidden;
+    }
+
+    .editor>div {
+      display: flex;
+      margin: 2px 0px 16px 0px;
+      justify-content: space-between;
+    }
+
+    .editor label {
+      display: block;
+      margin-top: 16px;
+      color: #666;
+      font-size: 11px;
+      line-height: 11px;
+    }
+
+    .editor input {
+      height: 24px;
+      line-height: 22px;
+      width: 100%;
+      outline: 0;
+      border-width: 0 0 1px;
+      background-color: #F6F6F6;
+      box-sizing: border-box;
+      font: 13px Roboto,Helvetica,Arial,sans-serif;
+    }
+
+    .editor input:focus {
+      border-color: #4c8bf5;
+      border-width: 0 0 2px;
+    }
+
+    .editor input + i {
+      color: green;
+    }
+
+    button, .button, i {
+      font: 12px/12px Roboto,Helvetica,Arial,sans-serif;
+      border-radius: 4px;
+      margin: 0px;
+      cursor: pointer;
+    }
+
+    button>span, .button>span {
+      display: flex !important;
+      align-items: center;
+      margin: 2px 0px 2px 0px;
+    }
+
+    button i + span, .button i + span {
+      width:100%;
+      line-height: 24px;
+    }
+
+    a {
+      font-size: 11px;
+      line-height:24px;
+    }
+
+    details textarea {
+      margin: 4px 0px 4px 0px;
+      height:120px;
+      width:100%;
+      font: 12px Source Code Pro, Roboto Mono, Lucida Console, monospace;
+      border: none;
+      outline: none;
+      background-color: #F6F6F6;
+    }
+    </style>
+  </head>
+  <body>
+    <h1 id="header">
+      <div>
+        <i id="whatifMenu" role="img" alt="Menu" class="material-symbols-outlined">menu</i>
+        <span>DataTables</span>
+        <i id="dtRecalcAll" role="img" title="Refresh All DataTables" class="material-symbols-outlined">refresh</i>
+      </div>
+    </h1>
+    <div id="message"></div>
+    <div id="container">
+      <div id="datatables">
+        <!-- New DataTable -->
+        <details id="addNew">
+          <summary class="button blue"><span><i class="material-symbols-outlined">add</i><span>New</span></span></summary>
+          <div class="editor">
+            <label>Name (Optional)</label>
+            <div><input class="name"></div>
+            <label>Range</label>
+            <div><input class="range"> <i role="img" alt="Capture Selected Range" class="material-symbols-outlined">border_all</i></div>
+            <label>Column Input</label>
+            <div><input class="colinput"> <i role="img" alt="Capture Selected Range" class="material-symbols-outlined">border_all</i></div>
+            <label>Row Input (for bivariate models, otherwise blank)</label>
+            <div><input class="rowinput"> <i role="img" alt="Capture Selected Range" class="material-symbols-outlined">border_all</i></div>
+            <div><a href="#">Edit JSON</a></div>
+            <span class="json" hidden>
+              <label>JSON</label>
+              <textarea>{ "name": "", "range": "", "colinput": "", "rowinput": "" }</textarea>
+            </span>
+            <div>
+              <button class="cancel grey"><span><i class="material-symbols-outlined">cancel</i> <span>Cancel</span></span></button>
+              <button class="save blue"><span><i class="material-symbols-outlined">auto_fix</i> <span>Save &amp; Calculate</span></span></button>
+            </div>
+          </div>
+        </details>
+        <!-- DataTable List -->
+        <span id="dtList">
+        </span>
+        <!-- Power Tools -->
+        <details id="advancedDt">
+          <summary class="button blue"><span><i class="material-symbols-outlined">build_circle</i><span>Power Tools&nbsp;</span></span></summary>
+          <div class="editor">
+            <div>
+              <button id="dtReload" ><span><i class="material-symbols-outlined">history</i> <span>Reload Latest</span></span></button>
+              <button id="copyToClipboard"><span><i class="material-symbols-outlined">content_copy</i> <span>Copy</span></span></button>
+            </div>
+            <span class="json">
+              <label>JSON</label>
+              <textarea style="height:300px !important" id="allDt"></textarea>
+            </span>
+            <div>
+              <button id="cancelAdvanced" class="grey"><span><i class="material-symbols-outlined">cancel</i> <span>Cancel</span></span></button>
+              <button id="saveAll" class="save red"><span><i class="material-symbols-outlined">save_as</i> <span>&nbsp;Import&nbsp;</span></span></button>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="sidebar bottom">
+      <span class="gray">&copy; Jeffrey Yang, 2022
+        <a target="_blank" href="https://github.com/sajacy/google-sheets-what-if-analysis#usage">User Guide</a> | 
+        <a target="_blank" href="https://github.com/sajacy/google-sheets-what-if-analysis/issues">Feedback</a>
+      </span>
+    </div>
+    <script>
+      const SEM = { 
+        // semaphore that is held when syncing JSON from user input, capture buttons, or save actions. 
+        dtSync: null,
+
+        // timeout ref, to be reset if multiple messages are triggered within the message timeout 
+        messageTimeout: null
+      }
+
+      function safeParse(str, defaultVal) {
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+          return defaultVal;
+        }
+      }
+
+      function message(e, obj) {
+        const msgEl = document.querySelector("#message");
+        msgEl.innerHTML = e + (!!obj ? `Context: ${JSON.stringify(obj)}` : "");
+        msgEl.classList.add("active");
+
+        if(SEM.messageTimeout) { clearTimeout(SEM.messageTimeout); }
+        SEM.messageTimeout = setTimeout(function() {
+          const msgEl = document.querySelector("#message");
+          msgEl.innerHTML = "";
+          msgEl.classList.remove("active");
+        }, 4_000);
+      }
+
+      function loadDt() {
+        message("Loading...");
+        google.script.run
+          .withSuccessHandler(function(dt) { 
+            message("DataTables loaded.");
+            renderDataTables(dt);
+          })
+          .withFailureHandler(message)
+          .fetchDataTables();
+      }
+
+      function viewDt(idx, config) {
+        if(!DOMRefs.dt[idx].open) {
+          message(`Viewing ${config.name}...`)
+          google.script.run
+            .withUserObject({ "idx": idx })
+            .withFailureHandler(message)
+            .focusDataTable(idx);
+
+          // Close other DataTable sections
+          // HACK: don't try to mutate the DOM el for this handler (it will cancel the opening)
+          DOMRefs.dt.filter((e,i) => i != idx).forEach(el => el.open = false);
+        }
+      }
+
+      function recalcDt(idx) {
+        google.script.run
+          .withUserObject({ "idx": idx })
+          .withSuccessHandler(function() { message("Done."); })
+          .withFailureHandler(message)
+          .recalcDataTable(idx);
+
+        message("Recalculating...");
+      }
+      
+      /** Delete a DataTable
+       * idx: the index to delete
+       * config: the config.name may change, so pass the config object (by reference)
+       */
+      function deleteDt(idx, config) {
+        if(confirm("Are you sure you want to delete " + config.name + "?")) {
+          google.script.run
+            .withUserObject({ "idx": idx })
+            .withSuccessHandler(function(dt) { 
+              message("Deleted.");
+              renderDataTables(dt);
+            })
+            .withFailureHandler(message)
+            .upsertDataTable(idx, null);
+
+          message("Deleting...");
+        }
+      }
+
+      function saveDt(idx) {
+        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        const json = safeParse(domEl.querySelector("textarea").value, null);
+        if(!!json) {
+           google.script.run
+            .withUserObject({ "idx": idx })
+            .withSuccessHandler(function(dt) { 
+              message("Saved.");
+              renderDataTables(dt);
+            })
+            .withFailureHandler(message)
+            .upsertDataTable(idx, json);
+
+          message("Saving...");
+        } else {
+          message(`Invalid config. Check the JSON.`)
+        }
+      }
+
+
+      function captureRange(idx, selector) {
+          google.script.run
+            .withUserObject({ "idx": idx })
+            .withSuccessHandler(function(val, rto) {
+              const domEl = (rto.idx == -1) ? document.querySelector("#addNew") : DOMRefs.dt[rto.idx];
+              const inputEl = domEl.querySelector(selector);
+              inputEl.value = val;
+              inputEl.dispatchEvent(new Event('input'));
+            })
+            .withFailureHandler(message)
+            .captureRange();
+      }
+
+      function detailsUi(idx) {
+        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        domEl.open = false;
+      }
+
+      function jsonUi(idx) {
+        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        domEl.querySelector(".json").toggleAttribute("hidden");
+      }
+
+      function onEditForm(idx, config, field) {
+        console.log(`onEditForm(${JSON.stringify(arguments)})`);
+        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        // a specific input as modified, update config
+        const inputEl = domEl.querySelector("input." + field);
+        config[field] = inputEl.value;
+
+        // update UI
+        domEl.querySelector("textarea").value = JSON.stringify(config,undefined,2);
+        // update non-form text in the domEl:
+        if(!!domEl.querySelector("span." + field)) {
+          domEl.querySelector("span." + field).innerText = config[field] || "[blank]";
+        }
+      }
+
+      // textarea was modified, rectify all other inputs
+      function onEditJson(idx, config) {
+        console.log(`onEditJson(${JSON.stringify(arguments)})`);
+        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        
+        // parse JSON
+        const json = safeParse(domEl.querySelector("textarea").value, config);
+
+        // update config
+        config.name = json.name;
+        config.range = json.range;
+        config.colinput = json.colinput;
+        config.rowinput = json.rowinput || null;
+
+        // update UI
+        domEl.querySelector("input.name").value = config.name;
+        domEl.querySelector("input.range").value = config.range;
+        domEl.querySelector("input.colinput").value = config.colinput;
+        domEl.querySelector("input.rowinput").value = config.rowinput;
+        // update title text on existing data tables:
+        if(domEl.querySelector("span.name")) {
+          domEl.querySelector("span.name").innerText = config.name;
+        }
+      }
+
+      function wireEditorUi(idx, config) {
+          const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+          domEl.querySelector(".cancel").onclick = function(e) { detailsUi(idx); };
+          domEl.querySelector(".save").onclick = function(e) { saveDt(idx); };
+          domEl.querySelector("a").onclick = function(e) { jsonUi(idx); };
+
+          // wire up form inputs to update JSON
+          const nameInput = domEl.querySelector("input.name");
+          nameInput.value = config.name || "";
+          nameInput.oninput = function(e) { onEditForm(idx, config, "name"); };
+
+          const rangeInput = domEl.querySelector("input.range");
+          rangeInput.value = config.range || "";
+          rangeInput.oninput = function(e) { onEditForm(idx, config, "range"); };
+
+          const colInput = domEl.querySelector("input.colinput");
+          colInput.value = config.colinput || "";
+          colInput.oninput = function(e) { onEditForm(idx, config, "colinput"); };
+
+          const rowInput = domEl.querySelector("input.rowinput");
+          rowInput.value = config.rowinput || "";
+          rowInput.oninput = function(e) { onEditForm(idx, config, "rowinput"); };
+
+          domEl.querySelector("textarea").oninput = function(e) { onEditJson(idx, config); }
+
+          // wire up i.click -> activeRange to update forms
+          domEl.querySelector(".range+i").onclick = function(e) { captureRange(idx, ".range"); };
+          domEl.querySelector(".colinput+i").onclick = function(e) { captureRange(idx, ".colinput"); };
+          domEl.querySelector(".rowinput+i").onclick = function(e) { captureRange(idx, ".rowinput"); };
+      }
+
+      function renderDataTables(dt) {
+        DOMRefs.allDt.value = JSON.stringify(dt,undefined,2); 
+        
+        // release existing DOM references, remove from document:
+        DOMRefs.dt = [];
+        DOMRefs.dtList.replaceChildren();
+        
+        // start rendering new DOM elements:
+        dt.filter(o => o).forEach(function(config, idx) {
+          const strConfig = JSON.stringify(config,undefined,2);
+
+          // create a new detail section
+          const domEl = document.createElement("details");
+          domEl.innerHTML = 
+          `<summary><span class="name">${config.name}</span></summary>
+            <div class="editor">
+              <label>Name</label>
+              <div>
+                <input class="name">
+              </div>
+              <label>Range</label>
+              <div>
+                <input class="range">
+                <i role="img" alt="Capture Selected Range" class="rangecapture material-symbols-outlined">border_all</i>
+              </div>
+              <label>Column Input</label>
+              <div>
+                <input class="colinput">
+                <i role="img" alt="Capture Selected Range" class="colinputcapture material-symbols-outlined">border_all</i>
+              </div>
+              <label>Row Input</label>
+              <div>
+                <input class="rowinput">
+                <i role="img" alt="Capture Selected Range" class="rowinputcapture material-symbols-outlined">border_all</i>
+              </div>
+              <div><a href="#">Edit JSON</a></div>
+              <span class="json" hidden>
+                <label>JSON</label>
+                <textarea>${strConfig}</textarea>
+              </span>
+              <div>
+                <button class="recalc"><span><i class="material-symbols-outlined">refresh</i> <span>Recalculate</span></span></button>
+                <button class="delete grey"><span><i class="material-symbols-outlined">delete</i> <span>Delete</span></span></button>
+              </div>
+              <div>
+                <button class="cancel"><span><i class="material-symbols-outlined">cancel</i> <span>Cancel</span></span></button>
+                <button class="save blue"><span><i class="material-symbols-outlined">save</i> <span>Save</span></span></button>
+              </div>
+            </div>
+          `;
+
+          // save a global-scope reference to the DOM element 
+          // then attach it to the document
+          DOMRefs.dt[idx] = domEl;
+          DOMRefs.dtList.appendChild(domEl);
+
+          // wire non-editor handlers with closures on indexes and config (never DOM elements!)
+          domEl.querySelector("summary").onclick = function(e) { viewDt(idx, config); };
+          domEl.querySelector(".recalc").onclick = function(e) { recalcDt(idx); };
+          domEl.querySelector(".delete").onclick = function(e) { deleteDt(idx, config); };
+          
+          // wire editor handlers
+          wireEditorUi(idx, config);
+
+        });
+      }
+
+      function init() {
+        // wire up static handlers:
+        DOMRefs.addNew.ontoggle = function(e) { if(e.target.open) { e.target.querySelector("input.range").focus(); } };
+        DOMRefs.cancelAdvanced.onclick = function(e) { DOMRefs.advancedDt.open = false; };
+        DOMRefs.copyToClipboard.onclick = function(e) { navigator.clipboard.writeText(DOMRefs.allDt.value); message("Copied."); }
+        DOMRefs.dtReload.onclick = loadDt;
+
+        // on init, if the selected range looks like a new datatable, pre-fill name and range:
+        wireEditorUi(-1, { "name": "current sheet", "range": "A1" })
+
+        // load data tables
+        loadDt();
+      }
+
+      const DOMRefs = {
+        // DOM elements corresponding to async loaded datatables
+        dt: [],
+        dtList: document.querySelector("#dtList"),
+
+        // Create New
+        addNew: document.querySelector("#addNew"),
+
+        // Power Tools
+        advancedDt: document.querySelector("#advancedDt"),
+        saveAll: document.querySelector("#saveAll"),
+        cancelAdvanced: document.querySelector("#cancelAdvanced"),
+        copyToClipboard: document.querySelector("#copyToClipboard"),
+        allDt: document.querySelector("#allDt"),
+        dtReload: document.querySelector("#dtReload")
+      }
+
+      init();
+    </script>
+  </body>
+</html>
