@@ -541,6 +541,7 @@
         DOMRefs.cancelAdvanced.onclick = function(e) { DOMRefs.advancedDt.open = false; };
         DOMRefs.copyToClipboard.onclick = function(e) { navigator.clipboard.writeText(DOMRefs.allDt.value); message("Copied."); }
         DOMRefs.dtReload.onclick = loadDt;
+        if (DOMRefs.dtRecalcAll) { DOMRefs.dtRecalcAll.onclick = function() { recalcDt('all'); }; }
 
         // on init, if the selected range looks like a new datatable, pre-fill name and range:
         wireEditorUi(-1, { "name": "current sheet", "range": "A1" })
@@ -553,6 +554,7 @@
         // DOM elements corresponding to async loaded datatables
         dt: [],
         dtList: document.querySelector("#dtList"),
+        dtRecalcAll: document.querySelector("#dtRecalcAll"),
 
         // Create New
         addNew: document.querySelector("#addNew"),

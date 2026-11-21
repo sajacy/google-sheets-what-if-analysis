@@ -80,9 +80,18 @@ function fetchDataTables() {
 
 function recalcDataTable(idx) {
   const dt = fetchDataTables();
-  if(!!dt[idx]) { 
+  if (idx === undefined || idx === null || idx === 'all') {
+    dt.forEach(config => datatables_(config));
+    return dt;
+  } else if (dt[idx]) {
     datatables_(dt[idx]);
+    return dt[idx];
   }
+  return null;
+}
+
+function refresh_() {
+  recalcDataTable('all');
 }
 
 function test_recalcDataTable_idx0() {
@@ -124,28 +133,42 @@ function captureRange() {
   return safeA1Notation_(activeRange.getSheet().getName(), activeRange.getA1Notation());
 }
 
+function resolveRange_(ref, s, ss) {
+  if (!ref) return null;
+  const str = String(ref).trim();
+  if (str.includes("!")) {
+    return Try(() => ss.getRange(str));
+  }
+  // Relative address must resolve to data table's sheet `s` first
+  return Try(() => s.getRange(str)) || Try(() => ss.getRange(str));
+}
+
 function validateConfig(config) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // check config has a name (required for V2)
   if (!config.name) { throw new DtConfigInputError(config, "name"); }
 
-  // check sheet
-  // backwards compatible with legacy: check for "config.sheet"
-  const s = Try(() => (!!config.sheet) ? ss.getSheetByName(config.sheet) : ss.getRange(config.range).getSheet());
+  // check sheet: backwards compatible with legacy: check for "config.sheet"
+  const s = Try(() => {
+    if (config.sheet) return ss.getSheetByName(config.sheet);
+    if (config.range && String(config.range).includes("!")) {
+      return ss.getRange(config.range).getSheet();
+    }
+    return ss.getActiveSheet();
+  });
   if (!s) { throw new DtConfigInputError(config, "sheet"); }
 
-  // check data table range: try spreadsheet range first (handles 'Sheet'!A1), fallback to sheet range
-  const range = Try(() => ss.getRange(config.range)) || Try(() => s.getRange(config.range));
+  // check data table range: relative addresses belong to sheet `s`
+  const range = resolveRange_(config.range, s, ss);
   if (!range) { throw new DtConfigInputError(config, "range"); }
 
-  // check inputs: support sheet-qualified range or active sheet range
-  const colinput = config.colinput ? (Try(() => ss.getRange(config.colinput)) || Try(() => s.getRange(config.colinput))) : null;
-  const rowinput = config.rowinput ? (Try(() => ss.getRange(config.rowinput)) || Try(() => s.getRange(config.rowinput))) : null;
+  // check inputs: relative cell addresses resolve to sheet `s` first
+  const colinput = resolveRange_(config.colinput, s, ss);
+  const rowinput = resolveRange_(config.rowinput, s, ss);
   if (!colinput && !rowinput) { throw new DtConfigInputError(config, "inputs"); }
 
-  // return the Range objects that were found, along with the config (why not)
-  Logger.log(`Validated: ${range}, ${colinput}, ${rowinput}`);
+  Logger.log(`Validated table: ${config.name}, range: ${range.getA1Notation()}`);
   return { "config": config, "range": range, "colinput": colinput, "rowinput": rowinput };
 }
 
@@ -286,11 +309,13 @@ function datatablesInternal_(datatable, colinput, rowinput) {
       for (var j = 0; j < row_test_values.length; j++) {
         colinput.setValue(col_test_values[i]);
         rowinput.setValue(row_test_values[j]);
+        SpreadsheetApp.flush();
         output_values[i][j] = output.getValue();
       }
     }
     colinput.setValue(colOriginal);
     rowinput.setValue(rowOriginal);
+    SpreadsheetApp.flush();
   } else if (colinput) {
     // univariate along column, potentially multi-output
     var colOriginal = colinput.getValue();
@@ -298,9 +323,11 @@ function datatablesInternal_(datatable, colinput, rowinput) {
     var output = s.getRange(range_row, range_col + 1, 1, num_columns - 1);
     for (var i = 0; i < col_test_values.length; i++) { 
       colinput.setValue(col_test_values[i]);
+      SpreadsheetApp.flush();
       output_values[i] = output.getValues().flat();
     }
     colinput.setValue(colOriginal);
+    SpreadsheetApp.flush();
   } else if (rowinput) {
     // univariate along row, potentially multi-output
     var rowOriginal = rowinput.getValue();
@@ -308,6 +335,7 @@ function datatablesInternal_(datatable, colinput, rowinput) {
     var output = s.getRange(range_row + 1, range_col, num_rows - 1, 1);
     for (var j = 0; j < row_test_values.length; j++) {
       rowinput.setValue(row_test_values[j]);
+      SpreadsheetApp.flush();
       var colOut = output.getValues().flat();
       for (var i = 0; i < colOut.length; i++) {
         if (!output_values[i]) output_values[i] = [];
@@ -315,11 +343,13 @@ function datatablesInternal_(datatable, colinput, rowinput) {
       }
     }
     rowinput.setValue(rowOriginal);
+    SpreadsheetApp.flush();
   }
 
   // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
   var dt_range_to_be_set = s.getRange(range_row + 1, range_col + 1, num_rows - 1, num_columns - 1);
   dt_range_to_be_set.setValues(output_values);
+  SpreadsheetApp.flush();
 }
 
 /**
