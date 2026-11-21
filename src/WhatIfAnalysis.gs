@@ -65,7 +65,8 @@ function fetchDataTables() {
     // jsonV2 already exists, prefer it: v1 data tables may no longer be usable.
     return JSON.parse(jsonStrV2);
   } else {
-    const jsonV1 = JSON.parse(PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY));
+    const rawV1 = PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY);
+    const jsonV1 = rawV1 ? JSON.parse(rawV1) : {};
 
     // convert to jsonV2
     const jsonV2 = convertToV2_(jsonV1);
@@ -120,7 +121,7 @@ function focusDataTable(idx) {
 
 function captureRange() {
   const activeRange = SpreadsheetApp.getActiveSpreadsheet().getActiveRange();
-  return safeA1Notation_(activeRange.getSheet().getSheetName(), activeRange.getA1Notation());
+  return safeA1Notation_(activeRange.getSheet().getName(), activeRange.getA1Notation());
 }
 
 function validateConfig(config) {
@@ -134,13 +135,13 @@ function validateConfig(config) {
   const s = Try(() => (!!config.sheet) ? ss.getSheetByName(config.sheet) : ss.getRange(config.range).getSheet());
   if (!s) { throw new DtConfigInputError(config, "sheet"); }
 
-  // check data table range
-  const range = Try(() => s.getRange(config.range));
+  // check data table range: try spreadsheet range first (handles 'Sheet'!A1), fallback to sheet range
+  const range = Try(() => ss.getRange(config.range)) || Try(() => s.getRange(config.range));
   if (!range) { throw new DtConfigInputError(config, "range"); }
 
-  // check inputs
-  const colinput = Try(() => s.getRange(config.colinput));
-  const rowinput = Try(() => s.getRange(config.rowinput));
+  // check inputs: support sheet-qualified range or active sheet range
+  const colinput = config.colinput ? (Try(() => ss.getRange(config.colinput)) || Try(() => s.getRange(config.colinput))) : null;
+  const rowinput = config.rowinput ? (Try(() => ss.getRange(config.rowinput)) || Try(() => s.getRange(config.rowinput))) : null;
   if (!colinput && !rowinput) { throw new DtConfigInputError(config, "inputs"); }
 
   // return the Range objects that were found, along with the config (why not)
@@ -162,7 +163,8 @@ class DtConfigInputError extends Error {
 
 /** Helper functions for the API */
 function safeA1Notation_(sheetName, a1part) {
-  return "'" + sheetName.replace("'","''") + "'!" + a1part;
+  if (!sheetName) return a1part;
+  return "'" + String(sheetName).replace(/'/g, "''") + "'!" + a1part;
 }
 
 function Try(fn, defaultValue = null) {
@@ -170,14 +172,21 @@ function Try(fn, defaultValue = null) {
 }
 
 function convertToV2_(jsonV1) {
+  if (!jsonV1 || typeof jsonV1 !== 'object') return [];
   return Object.keys(jsonV1)
     .map(function (key) {
-      return Try(() => ({
-          "name": key.slice(10),
-          "range": safeA1Notation_(jsonV1[key].sheet, jsonV1[key].range),
-          "colinput": jsonV1[key].colinput,
-          "rowinput": jsonV1[key].rowinput
-        }), null);
+      return Try(() => {
+        const item = jsonV1[key];
+        if (!item) return null;
+        const range = item.sheet ? safeA1Notation_(item.sheet, item.range) : item.range;
+        return {
+          "name": key.startsWith("DataTable_") ? key.slice(10) : key,
+          "sheet": item.sheet,
+          "range": range,
+          "colinput": item.colinput,
+          "rowinput": item.rowinput
+        };
+      }, null);
     }).filter(o => o);
 }
 
@@ -252,10 +261,10 @@ function test_datatables() {
 
 function datatables_(config) {
   const { range, colinput, rowinput } = validateConfig(config);
-  datatablesInternalV2_(range, colinput, rowinput);
+  datatablesInternal_(range, colinput, rowinput);
 }
 
-/** Non-batched implementation */
+/** Working implementation */
 function datatablesInternal_(datatable, colinput, rowinput) {
   var s = datatable.getSheet();
   var range_row = datatable.getRow();
@@ -264,39 +273,53 @@ function datatablesInternal_(datatable, colinput, rowinput) {
   var num_columns = datatable.getNumColumns();
   var output_values = [];
 
-  var colOriginal = colinput.getValue();
-  var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
-
-  if (rowinput) {
+  if (rowinput && colinput) {
     // bivariate
+    var colOriginal = colinput.getValue();
     var rowOriginal = rowinput.getValue();
+    var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
     var output = s.getRange(range_row, range_col, 1, 1);
     var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
 
     for (var i = 0; i < col_test_values.length; i++) {
-      output_values[i] = []
+      output_values[i] = [];
       for (var j = 0; j < row_test_values.length; j++) {
         colinput.setValue(col_test_values[i]);
         rowinput.setValue(row_test_values[j]);
         output_values[i][j] = output.getValue();
       }
     }
-    rowinput.setValue(rowOriginal); // reset row input value
-  } else {
-    // univariate, potentially multi-output
+    colinput.setValue(colOriginal);
+    rowinput.setValue(rowOriginal);
+  } else if (colinput) {
+    // univariate along column, potentially multi-output
+    var colOriginal = colinput.getValue();
+    var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
     var output = s.getRange(range_row, range_col + 1, 1, num_columns - 1);
     for (var i = 0; i < col_test_values.length; i++) { 
       colinput.setValue(col_test_values[i]);
       output_values[i] = output.getValues().flat();
     }
+    colinput.setValue(colOriginal);
+  } else if (rowinput) {
+    // univariate along row, potentially multi-output
+    var rowOriginal = rowinput.getValue();
+    var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
+    var output = s.getRange(range_row + 1, range_col, num_rows - 1, 1);
+    for (var j = 0; j < row_test_values.length; j++) {
+      rowinput.setValue(row_test_values[j]);
+      var colOut = output.getValues().flat();
+      for (var i = 0; i < colOut.length; i++) {
+        if (!output_values[i]) output_values[i] = [];
+        output_values[i][j] = colOut[i];
+      }
+    }
+    rowinput.setValue(rowOriginal);
   }
 
   // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
   var dt_range_to_be_set = s.getRange(range_row + 1, range_col + 1, num_rows - 1, num_columns - 1);
   dt_range_to_be_set.setValues(output_values);
-
-  // Reset the input value
-  colinput.setValue(colOriginal);
 }
 
 /**
