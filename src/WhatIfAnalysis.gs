@@ -23,41 +23,68 @@ function onInstall(e) {
 
 function onOpen(e) {
   var ui = SpreadsheetApp.getUi();
-  ui.createAddonMenu()
-    .addSubMenu(
-      ui.createMenu('Legacy Version')
-      .addItem('Create Data Table', 'create_')
-      .addItem('Refresh Data Tables', 'refresh_')
-      .addItem('Delete All Data Tables', 'delete_'))
-    .addItem('Open Sidebar', 'sidepanel_')
-    .addToUi();
-    
-  // Avoid accessing properties if the user hasn't yet run the add-on (via menu items)
-  // https://developers.google.com/apps-script/reference/script/auth-mode
+  ui.createMenu('What-If Analysis')
+    .addItem('Open Sidebar', 'sidebar_')
+  .addToUi();
+
+  // DEPRECATED: retain for migration
   if (e && e.authMode != ScriptApp.AuthMode.NONE) {
-    // initialize document state for datatables
-    PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY, PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY) || '{}');
+    const hasV1 = !!PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY);
+    if (true) {
+      ui.createMenu('What-If Analysis')
+      .addItem('Open Sidebar', 'sidebar_')
+      .addSubMenu(
+        ui.createMenu('Legacy Version')
+        .addItem('Refresh Data Tables', 'refresh_')
+        .addItem(`Delete Legacy Version`, 'deleteLegacy_'))
+      .addToUi();
+    }
   }
 }
 
-function sidepanel_() {
+/**
+ * Menu Item: Sidebar
+ */
+function sidebar_() {
   SpreadsheetApp.getUi()
   .showSidebar(
     HtmlService
-    .createHtmlOutputFromFile('sidepanel.html')
+    .createHtmlOutputFromFile('sidepanel.html') // TODO: rename
     .setTitle('What-If Analysis'));
 }
 
-/** Datatables V2 API
- * fetchDataTables
- * recalcDataTable
- * upsertDataTable
- * focusDataTable
- * captureRange
+/**
+ * (Legacy) Menu Item: Delete Legacy property
+ */
+function deleteLegacy_() {
+  PropertiesService.getDocumentProperties().deleteProperty(DATATABLE_KEY);
+}
+
+/**
+ * (Legacy) Menu Item: Refresh All Datatables
+ */
+function refresh_() {
+  recalcDataTable(Infinity);
+}
+
+/**
+ * Sidebar Button: Recalculate
  * 
- * validateConfig
+ * idx: int, can be Infinity to recalculate all
+ */
+function recalcDataTable(idx) {
+  const dt = fetchDataTables();
+  if (idx === Infinity) {
+    dt.forEach(config => datatables_(config));
+  } else if (Number.isInteger(idx) && dt[idx]) {
+    datatables_(dt[idx]);
+  }
+}
+
+/** 
+ * Sidebar Button: Load (and also on sidebar init)
  * 
- * ScriptError: TypeError: Cannot read property 'replace' of undefined
+ * returns the full config array
  */
 function fetchDataTables() {
   const jsonStrV2 = PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY_V2);
@@ -65,77 +92,110 @@ function fetchDataTables() {
     // jsonV2 already exists, prefer it: v1 data tables may no longer be usable.
     return JSON.parse(jsonStrV2);
   } else {
+    // auto-migrate v1 to v2
     const rawV1 = PropertiesService.getDocumentProperties().getProperty(DATATABLE_KEY);
     const jsonV1 = rawV1 ? JSON.parse(rawV1) : {};
-
-    // convert to jsonV2
     const jsonV2 = convertToV2_(jsonV1);
 
     // store jsonV2
     PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY_V2, JSON.stringify(jsonV2));
-
     return jsonV2;
   }
 }
 
-function recalcDataTable(idx) {
-  const dt = fetchDataTables();
-  if (idx === undefined || idx === null || idx === 'all') {
-    dt.forEach(config => datatables_(config));
-    return dt;
-  } else if (dt[idx]) {
-    datatables_(dt[idx]);
-    return dt[idx];
-  }
-  return null;
-}
-
-function refresh_() {
-  recalcDataTable('all');
-}
-
-function test_recalcDataTable_idx0() {
-  recalcDataTable(0);
-}
-
 /** 
+ * Sidebar Button: Save, Delete
+ * 
  * idx: int, can be -1 to indicate a new config
  * config: object, can be null to indicate deletion
  * 
- * Function can throw an exception due to validateConfig
+ * Can throw an exception due to validateConfig_
  */
 function upsertDataTable(idx, config) {
   const dt = fetchDataTables();
-  if(!!config && validateConfig(config)) {
-    // config is upsertable, do the upsert:
-    if (idx == -1) {
+  if (idx !== -1 && (!Number.isInteger(idx) || !dt[idx])) {
+    throw new Error("DataTable no longer exists. Reload the sidebar.");
+  }
+  if (config === null) {
+    if (idx === -1) throw new Error("Select a saved DataTable to delete.");
+    dt.splice(idx, 1);
+  } else {
+    validateConfig_(config);
+    if (idx === -1) {
       dt.push(config);
     } else {
       dt[idx] = config;
     }
-  } else {
-    // config was null, delete it at idx:
-    dt.splice(idx,1);
   }
   PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY_V2, JSON.stringify(dt));
   return dt;
 }
 
+/**
+ * Sidebar Button: Import All
+ * 
+ * json: a full array of dt configs
+ * reorderOnly: keep every saved config and skip range validation for existing configs and copies
+ * 
+ * Can throw an exception due to validateConfig_
+ */
+function importDataTables(json, reorderOnly = false) {
+  const dt = Try(() => JSON.parse(json));
+  if (!Array.isArray(dt)) {
+    throw new Error("Import must be a valid JSON array of DataTables.");
+  }
+  let savedKeys;
+  // Encode the config fields in a fixed order so JSON property order is irrelevant.
+  const orderKey = config => JSON.stringify(config == null ? null : [
+    config.name, config.sheet, config.range, config.colinput, config.rowinput,
+  ]);
+  if (reorderOnly === true) {
+    savedKeys = new Set(fetchDataTables().map(orderKey));
+    const incomingKeys = new Set(dt.map(orderKey));
+    if ([...savedKeys].some(key => !incomingKeys.has(key))) {
+      throw new Error("The saved tables changed. Revert to the last save and try again.");
+    }
+  }
+  dt.forEach((config, idx) => {
+    if (savedKeys?.has(orderKey(config))) return;
+    try {
+      validateConfig_(config);
+    } catch (err) {
+      throw new Error(`DataTable ${idx + 1}: ${err.message}`);
+    }
+  });
+  PropertiesService.getDocumentProperties().setProperty(DATATABLE_KEY_V2, JSON.stringify(dt));
+  return dt;
+}
+
+/**
+ * Sidebar Button: Focus on Data Table Range, Summary on click 
+ */
 function focusDataTable(idx) {
   const dt = fetchDataTables();
   const config = dt[idx];
-  SpreadsheetApp.getActiveSpreadsheet().getRange(config.range).activate();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = config.sheet ? ss.getSheetByName(config.sheet) : ss.getActiveSheet();
+  const range = resolveRange_(config.range, sheet, ss);
+  if (range) range.activate();
   SpreadsheetApp.flush();
 }
 
+/**
+ * Sidebar Button: Capture Range (must already be selected)
+ */
 function captureRange() {
   const activeRange = SpreadsheetApp.getActiveSpreadsheet().getActiveRange();
   return safeA1Notation_(activeRange.getSheet().getName(), activeRange.getA1Notation());
 }
 
+/**
+ * Returns `null` if range is not found
+ */
 function resolveRange_(ref, s, ss) {
   if (!ref) return null;
   const str = String(ref).trim();
+  if (!str) return null;
   if (str.includes("!")) {
     return Try(() => ss.getRange(str));
   }
@@ -143,17 +203,26 @@ function resolveRange_(ref, s, ss) {
   return Try(() => s.getRange(str)) || Try(() => ss.getRange(str));
 }
 
-function validateConfig(config) {
+function validateConfig_(config) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // check config has a name (required for V2)
-  if (!config.name) { throw new DtConfigInputError(config, "name"); }
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new Error("A DataTable must be a JSON object.");
+  }
+  if (typeof config.name !== "string" || !config.name.trim()) {
+    throw new DtConfigInputError(config, "name");
+  }
+  for (const field of ["sheet", "range", "colinput", "rowinput"]) {
+    if (config[field] != null && typeof config[field] !== "string") {
+      throw new Error(`${field} must be a text reference.`);
+    }
+  }
 
   // check sheet: backwards compatible with legacy: check for "config.sheet"
   const s = Try(() => {
     if (config.sheet) return ss.getSheetByName(config.sheet);
     if (config.range && String(config.range).includes("!")) {
-      return ss.getRange(config.range).getSheet();
+      return ss.getRange(config.range.trim()).getSheet();
     }
     return ss.getActiveSheet();
   });
@@ -166,10 +235,27 @@ function validateConfig(config) {
   // check inputs: relative cell addresses resolve to sheet `s` first
   const colinput = resolveRange_(config.colinput, s, ss);
   const rowinput = resolveRange_(config.rowinput, s, ss);
+  for (const [label, ref, input] of [
+    ["Column Input", config.colinput, colinput],
+    ["Row Input", config.rowinput, rowinput],
+  ]) {
+    if (!ref || !ref.trim()) continue;
+    if (!input || input.getNumRows() !== 1 || input.getNumColumns() !== 1) {
+      throw new Error(`${label} (${ref}) must refer to one valid cell.`);
+    }
+    if (input.getSheet().getSheetId() === range.getSheet().getSheetId() &&
+        input.getRow() >= range.getRow() && input.getRow() <= range.getLastRow() &&
+        input.getColumn() >= range.getColumn() && input.getColumn() <= range.getLastColumn()) {
+      throw new Error(`${label} (${ref}) must be outside the DataTable range.`);
+    }
+  }
   if (!colinput && !rowinput) { throw new DtConfigInputError(config, "inputs"); }
+  if (range.getNumRows() < 2 || range.getNumColumns() < 2) {
+    throw new Error("Range must span at least two rows and two columns.");
+  }
 
   Logger.log(`Validated table: ${config.name}, range: ${range.getA1Notation()}`);
-  return { "config": config, "range": range, "colinput": colinput, "rowinput": rowinput };
+  return {config, dtRange: range, colInputCell: colinput, rowInputCell: rowinput};
 }
 
 class DtConfigInputError extends Error {
@@ -210,305 +296,116 @@ function convertToV2_(jsonV1) {
           "rowinput": item.rowinput
         };
       }, null);
-    }).filter(o => o);
-}
-
-/**
- * New features to support:
- * 
- *  - Side Panel to manage DataTables
- *  - Nicer UI for specifying ranges
- *  - Change focus to DataTable
- *  - Recalculate individually
- *  - Remove dependency on NamedRanges (for existence/deletion)
- *  - Copying DataTables to new Sheet (DocumentProperties don't copy with File > Make a Copy)
- *  - allow user-specified names (Migrate to keyless dt_ object: array only)
- * 
- * Auto-Refresh 
- *  - Watch for new DataTable inputs and recalculate the outputs. 
- */
-
-function test_datatables() {
-  [
-    {
-    "name": "Bivariate",
-    "range": "H4:K12",
-    "sheet": "Original 2018 Tax Calculator",
-    "colinput": "A2",
-    "rowinput": "A4"
-  }, 
-  {
-    "name": "Univariate",
-    "range": "H16:I24",
-    "sheet": "Original 2018 Tax Calculator",
-    "colinput": "A2",
-    "rowinput": null
-  }, 
-  {
-    "name": "BadSheet",
-    "range": "H16:I24",
-    "sheet": "Non-existent Sheet",
-    "colinput": "A2",
-    "rowinput": null
-  },
-    {
-    "name": "BadRange",
-    "range": "Bad-Range-Ref",
-    "sheet": "Original 2018 Tax Calculator",
-    "colinput": "A2",
-    "rowinput": null
-  },
-    {
-    "name": "BadInputs",
-    "range": "H16:I24",
-    "sheet": "Original 2018 Tax Calculator",
-    "colinput": "Another-bad-range-ref",
-    "rowinput": "Yet-another-bad-range-ref"
-  },
-    {
-    // "name": "Missing Name",
-    "range": "H16:I24",
-    "sheet": "Original 2018 Tax Calculator",
-    "colinput": "A2",
-    "rowinput": null
-  }].forEach(function (example, i) {
-    try {
-      Logger.log(`Test ${i}:`);
-      datatables_(example);
-      Logger.log("OK");
-    } catch (e) {
-      Logger.log(e);
-    }
-  });
+    }).filter(_ => !!_);
 }
 
 function datatables_(config) {
-  const { range, colinput, rowinput } = validateConfig(config);
-  datatablesInternal_(range, colinput, rowinput);
+  const {dtRange, colInputCell, rowInputCell} = validateConfig_(config);
+  datatablesInternal_(dtRange, colInputCell, rowInputCell);
 }
 
 /** Working implementation */
-function datatablesInternal_(datatable, colinput, rowinput) {
-  var s = datatable.getSheet();
-  var range_row = datatable.getRow();
-  var range_col = datatable.getColumn();
-  var num_rows = datatable.getNumRows();
-  var num_columns = datatable.getNumColumns();
-  var output_values = [];
+function datatablesInternal_(dtRange, colInputCell, rowInputCell) {
+  const s = dtRange.getSheet();
+  const range_row = dtRange.getRow();
+  const range_col = dtRange.getColumn();
+  const num_rows = dtRange.getNumRows();
+  const num_columns = dtRange.getNumColumns();
+  const output_values = [];
 
-  if (rowinput && colinput) {
-    // bivariate
-    var colOriginal = colinput.getValue();
-    var rowOriginal = rowinput.getValue();
-    var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
-    var output = s.getRange(range_row, range_col, 1, 1);
-    var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
+  // A scenario can fail after changing an input. Backup its formula or value first.
+  const originals = [colInputCell, rowInputCell].filter(Boolean).map(input => ({
+    input,
+    formula: input.getFormula(),
+    value: input.getValue(),
+  }));
+  try {
+    if (rowInputCell && colInputCell) {
+      /* bivariate (single formula)
+         | formula    | row_value_1 | row_value_2 | 
+         |------------|-------------|-------------|
+         |col_value_1 |
+         |col_value_2 |
+         |col_value_3 |
 
-    for (var i = 0; i < col_test_values.length; i++) {
-      output_values[i] = [];
-      for (var j = 0; j < row_test_values.length; j++) {
-        colinput.setValue(col_test_values[i]);
-        rowinput.setValue(row_test_values[j]);
+         output.getValues() are single cells for each CxR combination:
+         [ [ formula_c1_r1 ] ] 
+         [ [ formula_c1_r2 ] ] 
+         [ [ formula_c2_r1 ] ] 
+         [ [ formula_c2_r2 ] ] 
+         [ [ formula_c3_r1 ] ] 
+         [ [ formula_c3_r2 ] ] 
+      */
+      var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
+      var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
+      var output = s.getRange(range_row, range_col, 1, 1);
+
+      for (var i = 0; i < col_test_values.length; i++) {
+        output_values[i] = [];
+        for (var j = 0; j < row_test_values.length; j++) {
+          colInputCell.setValue(col_test_values[i]);
+          rowInputCell.setValue(row_test_values[j]);
+          SpreadsheetApp.flush();
+          output_values[i][j] = output.getValue();
+        }
+      }
+    } else if (colInputCell) {
+      /* univariate along column, potentially multi-output
+         |             | formula_1 | formula_2 | 
+         |-------------|-----------|------ ----|
+         |test_value_1 |
+         |test_value_2 |
+         |test_value_3 |
+
+         output.getValues() are columns for each test value:
+         [ [ formula_1_test_value_1 , formula_2_test_value_1 ] ]
+         [ [ formula_1_test_value_2 , formula_2_test_value_2 ] ]
+         [ [ formula_1_test_value_3 , formula_2_test_value_3 ] ]
+      */
+      var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
+      var output = s.getRange(range_row, range_col + 1, 1, num_columns - 1);
+      for (var i = 0; i < col_test_values.length; i++) {
+        colInputCell.setValue(col_test_values[i]);
         SpreadsheetApp.flush();
-        output_values[i][j] = output.getValue();
+        output_values[i] = output.getValues().flat();
+      }
+    } else if (rowInputCell) {
+      /* univariate along row, potentially multi-output
+         |          | test_value_1 | test_value_2 | ... | test_value_N |
+         |----------|--------------|--------------|-----|--------------|
+         |formula_1 |
+         |formula_2 |
+
+         output.getValues() are columns for each test value:
+         [ [ formula_1_test_value_1 ], [ formula_2_test_value_1 ] ]
+         [ [ formula_1_test_value_2 ], [ formula_2_test_value_2 ] ]
+         [ [ formula_1_test_value_3 ], [ formula_2_test_value_3 ] ]
+      */
+      var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
+      var output = s.getRange(range_row + 1, range_col, num_rows - 1, 1);
+      for (var j = 0; j < row_test_values.length; j++) {
+        rowInputCell.setValue(row_test_values[j]);
+        SpreadsheetApp.flush();
+        var colOut = output.getValues().flat();
+        for (var i = 0; i < colOut.length; i++) {
+          if (!output_values[i]) output_values[i] = [];
+          output_values[i][j] = colOut[i];
+        }
       }
     }
-    colinput.setValue(colOriginal);
-    rowinput.setValue(rowOriginal);
-    SpreadsheetApp.flush();
-  } else if (colinput) {
-    // univariate along column, potentially multi-output
-    var colOriginal = colinput.getValue();
-    var col_test_values = s.getRange(range_row + 1, range_col, num_rows - 1, 1).getValues().flat();
-    var output = s.getRange(range_row, range_col + 1, 1, num_columns - 1);
-    for (var i = 0; i < col_test_values.length; i++) { 
-      colinput.setValue(col_test_values[i]);
-      SpreadsheetApp.flush();
-      output_values[i] = output.getValues().flat();
-    }
-    colinput.setValue(colOriginal);
-    SpreadsheetApp.flush();
-  } else if (rowinput) {
-    // univariate along row, potentially multi-output
-    var rowOriginal = rowinput.getValue();
-    var row_test_values = s.getRange(range_row, range_col + 1, 1, num_columns - 1).getValues().flat();
-    var output = s.getRange(range_row + 1, range_col, num_rows - 1, 1);
-    for (var j = 0; j < row_test_values.length; j++) {
-      rowinput.setValue(row_test_values[j]);
-      SpreadsheetApp.flush();
-      var colOut = output.getValues().flat();
-      for (var i = 0; i < colOut.length; i++) {
-        if (!output_values[i]) output_values[i] = [];
-        output_values[i][j] = colOut[i];
+  } finally {
+    originals.forEach(({input, formula, value}) => {
+      if (formula) {
+        input.setFormula(formula);
+      } else {
+        input.setValue(value);
       }
-    }
-    rowinput.setValue(rowOriginal);
+    });
     SpreadsheetApp.flush();
   }
 
   // Gets all the test values in a batch operation, so that expensive getCell and setValue calls are not made in the for-loop.
-  var dt_range_to_be_set = s.getRange(range_row + 1, range_col + 1, num_rows - 1, num_columns - 1);
-  dt_range_to_be_set.setValues(output_values);
+  const resultCells = s.getRange(range_row + 1, range_col + 1, num_rows - 1, num_columns - 1);
+  resultCells.setValues(output_values);
   SpreadsheetApp.flush();
-}
-
-/**
- * Create an UpdateCellsRequest for a single cell.
- * 
- * @param {Range} range The range to update
- * @param {object} value The value to write to the cell
- * @return {UpdateCellsRequest} A request object
- */
-function updateCell_(range, value) {
-  const extendedValue = (typeof value === 'number') ? 
-    { numberValue: value } : 
-    { stringValue: value };
-  const o = SheetsApi.newUpdateCellsRequest();
-  o.fields = 'userEnteredValue';
-  o.range = rangeToGrid_(range);
-  o.rows = [{ values: [{ userEnteredValue: extendedValue }] }]
-  return { 'updateCells': o };
-}
-
-/** 
- * Creates a 1x1 GridRange for the specified range and offsets 
- * 
- * @param {Range} range The range representing the full data table
- * @param {number} offsetCols The column index offset
- * @param {number} offsetRows The row index offset
- */
-function rangeToGrid_(range, offsetCols = 0, offsetRows = 0) {
-  // find range reference indices
-  const colIndex = range.getColumn()-1;
-  const rowIndex = range.getRow()-1;
-
-  const o = SheetsApi.newGridRange();
-  o.sheetId = range.getSheet().getSheetId();
-  o.startColumnIndex = colIndex + offsetCols;
-  o.startRowIndex = rowIndex + offsetRows;
-  // end indices are exclusive, so add 1
-  o.endColumnIndex = colIndex + offsetCols + 1;
-  o.endRowIndex = rowIndex + offsetRows + 1;
-  return o;  
-}
-
-function copyCell_(range, toCol, toRow, fromCol = 0, fromRow = 0) {
-  const o = SheetsApi.newCopyPasteRequest();
-  o.source = rangeToGrid_(range, fromCol, fromRow);
-  o.destination = rangeToGrid_(range, toCol, toRow);
-  o.pasteType = 'PASTE_VALUES';
-  o.pasteOrientation = 'NORMAL';
-  return { 'copyPaste': o };
-}
-
-/** 
- * An internal implementation using batchUpdate.
- * 
- * @param {Range} datatable The range representing the full data table
- * @param {Range} colinput The cell to write column test inputs (nullable)
- * @param {Range} rowinput The cell to write row test inputs (nullable)
- */
-function datatablesInternalV2_(datatable, colinput, rowinput) {
-  const requests = [];
-  const values = datatable.getValues();
-  const DUMMY = true;
-  
-  if (colinput && rowinput) {
-    const colOriginal = colinput.getValue();
-    const rowOriginal = rowinput.getValue();
-
-    /*
-     * Because the inputs are actually declared along the transposed axes,
-     * ri := col index
-     * ci := row index
-     *   out | ri=0 | ri=1 | ri=2
-     *   ----+------+------+------
-     *   ci=0| ...  | ...  |  ...
-     *   ci=1| ...  | ...  | datatable[row=2][col=3]
-     *   ci=2| ...  | ...  |  ...
-     * 
-     * also, note the +1 offset due to the test value column and row.
-     */
-    const biColTestValues = values.map(row => row[0]).slice(1);
-    const biRowTestValues = values[0].slice(1);
-    biColTestValues.forEach((cv, ci) => {
-      requests.push(updateCell_(colinput, cv));
-      biRowTestValues.forEach((rv, ri) => {
-        requests.push(updateCell_(rowinput, rv));
-        requests.push(copyCell_(datatable, ri + 1, ci + 1));
-      });
-    });
-    
-    // restore originals
-    requests.push(updateCell_(colinput, colOriginal))
-    requests.push(updateCell_(rowinput, rowOriginal))
-
-  } else if (colinput) {
-    /*
-     * Because column inputs are actually declared along rows,
-     * oi := col index
-     * ci := row index
-     *       | oi=0 | oi=1 | oi=2
-     *   ----+------+------+------
-     *   ci=0| ...  | ...  |  ...
-     *   ci=1| ...  | ...  | datatable[row=2][col=3]
-     *   ci=2| ...  | ...  |  ...
-     * 
-     * also, note the +1 offset due to the test value column and output row.
-     */
-    const colOriginal = colinput.getValue();
-    const colTestValues = values.map(row => row[0]).slice(1);
-    const outputs = values[0].slice(1).map(v => DUMMY);
-    colTestValues.forEach((cv, ci) => {
-      requests.push(updateCell_(colinput, cv));
-      outputs.forEach((dummy, oi) => 
-        requests.push(copyCell_(datatable, oi + 1, ci + 1, 1, 0)));
-    });
-    
-    // restore original
-    requests.push(updateCell_(colinput, colOriginal))
-    
-  } else if (rowinput) {
-    /*
-     * Because row inputs are actually declared along columns,
-     * ri := col index
-     * oi := row index
-     *       | ri=0 | ri=1 | ri=2
-     *   ----+------+------+------
-     *   oi=0| ...  | ...  |  ...
-     *   oi=1| ...  | ...  | datatable[row=2][col=3]
-     *   oi=2| ...  | ...  |  ...
-     * 
-     * also, note the +1 offset due to the test value row and output column.
-     */
-    const rowOriginal = rowinput.getValue();
-    const rowTestValues = values[0].slice(1);
-    const outputs = values.map(row => row[0]).slice(1).map(v => DUMMY);
-    rowTestValues.forEach((rv, ri) => {
-      requests.push(updateCell_(rowinput, rv));
-      outputs.forEach((dummy, oi) => 
-        requests.push(copyCell_(datatable, ri + 1, oi + 1, 0, 1)));
-    });
-    
-    // restore original
-    requests.push(updateCell_(rowinput, rowOriginal))
-
-  }
-  batchUpdate_(requests);
-}
-
-function batchUpdate_(requests) {
-  const ssId = SpreadsheetApp.getActiveSpreadsheet().getId();
-  const batchRequest = SheetsApi.newBatchUpdateSpreadsheetRequest();
-  batchRequest.requests = requests;
-  //batchRequest.includeSpreadsheetInResponse = false;
-  //batchRequest.responseIncludeGridData = true;
-  Logger.log(JSON.stringify(batchRequest,null,2));
-  const response = {}; // SheetsApi.Spreadsheets.batchUpdate(batchRequest, ssId);
-  Logger.log(`BatchUpdate response: ${JSON.stringify(response,null,2)}`);
-  return response;
-}
-
-function batchGet_(requests) {
-  
 }

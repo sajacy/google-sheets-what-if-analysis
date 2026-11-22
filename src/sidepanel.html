@@ -30,16 +30,54 @@
       z-index: 1;
     }
 
-    #advancedDt, #advancedDt[open] {
-      -moz-box-sizing: border-box;
-      box-sizing: border-box;
-      position: fixed !important;
-      top: auto;
-      bottom: 44px;
-      width: 100%;
-      background-color: #d6e6ffde;
-      border-top: 2px solid #4c8bf5;
+    #menuItems {
+      position: absolute;
+      top: 40px;
+      left: 8px;
+      padding: 4px;
+      background: white;
+      box-shadow: 0 2px 6px #0003;
+      z-index: 2;
+    }
+
+    #advancedDt:not([open]) {
+      display: none;
+    }
+
+    #advancedDt[open] {
       z-index: 1000;
+    }
+
+    .iconButton {
+      min-width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    .iconButton:hover {
+      background: #8882;
+    }
+
+    .panelClose {
+      position: absolute;
+      top: 10px;
+      right: 8px;
+    }
+
+    details:not([open]) > .panelClose {
+      display: none;
+    }
+
+    details[open] > summary {
+      padding-right: 40px;
+    }
+
+    .editor > div.actions {
+      flex-flow: column;
+      gap: 6px;
     }
 
     #message {
@@ -53,7 +91,7 @@
       font: 12px/24px Roboto,Helvetica,Arial,sans-serif;
       background-color: #ffe395;
       display: none;
-      z-index: 999;
+      z-index: 1001;
     }
 
     #message.active {
@@ -69,15 +107,19 @@
     }
 
     details summary.button {
-      margin: 8px;
+      margin: 8px !important;
     }
     
     details[open] summary.button {
       display:none;
     }
 
-    .red {
-      text-transform: none !important;
+    button.delete {
+      color: #b3261e;
+    }
+
+    button.delete:hover {
+      background: #fce8e6;
     }
 
     details {
@@ -95,6 +137,29 @@
       user-select: none;                 
     }
     
+    .dragHandle {
+      color: #666;
+      cursor: grab;
+      font-weight: bold;
+      user-select: none;
+    }
+
+    .dragHandle:active {
+      cursor: grabbing;
+    }
+
+    details[open] > summary .dragHandle {
+      display: none;
+    }
+
+    summary.dropBefore {
+      box-shadow: inset 0 2px #4c8bf5;
+    }
+
+    summary.dropAfter {
+      box-shadow: inset 0 -2px #4c8bf5;
+    }
+
     details summary:hover {
       background-color: #f3f3f3 !important;
     }
@@ -176,7 +241,7 @@
     button, .button, i {
       font: 12px/12px Roboto,Helvetica,Arial,sans-serif;
       border-radius: 4px;
-      margin: 0px;
+      margin: 0px !important;
       cursor: pointer;
     }
 
@@ -210,12 +275,13 @@
   <body>
     <h1 id="header">
       <div>
-        <i id="whatifMenu" role="img" alt="Menu" class="material-symbols-outlined">menu</i>
+        <button id="whatifMenu" class="iconButton material-symbols-outlined" aria-label="Menu" aria-controls="menuItems" aria-expanded="false">menu</button>
         <span>DataTables</span>
         <i id="dtRecalcAll" role="img" title="Refresh All DataTables" class="material-symbols-outlined">refresh</i>
       </div>
     </h1>
-    <div id="message"></div>
+    <div id="menuItems" hidden><button id="openAdvanced">Power Tools</button></div>
+    <div id="message" role="status"></div>
     <div id="container">
       <div id="datatables">
         <!-- New DataTable -->
@@ -235,9 +301,10 @@
               <label>JSON</label>
               <textarea>{ "name": "", "range": "", "colinput": "", "rowinput": "" }</textarea>
             </span>
-            <div>
+            <div class="actions">
               <button class="cancel grey"><span><i class="material-symbols-outlined">cancel</i> <span>Cancel</span></span></button>
-              <button class="save blue"><span><i class="material-symbols-outlined">auto_fix</i> <span>Save &amp; Calculate</span></span></button>
+              <button class="saveonly"><span><i class="material-symbols-outlined">save</i> <span>Save</span></span></button>
+              <button class="save blue"><span><i class="material-symbols-outlined">auto_fix</i> <span>Save &amp; Calc</span></span></button>
             </div>
           </div>
         </details>
@@ -246,19 +313,19 @@
         </span>
         <!-- Power Tools -->
         <details id="advancedDt">
-          <summary class="button blue"><span><i class="material-symbols-outlined">build_circle</i><span>Power Tools&nbsp;</span></span></summary>
+          <summary>Power Tools</summary>
+          <button id="cancelAdvanced" class="iconButton panelClose material-symbols-outlined" aria-label="Close Power Tools" title="Close">close</button>
           <div class="editor">
             <div>
-              <button id="dtReload" ><span><i class="material-symbols-outlined">history</i> <span>Reload Latest</span></span></button>
+              <button id="dtReload" ><span><i class="material-symbols-outlined">history</i> <span>Revert to last save</span></span></button>
               <button id="copyToClipboard"><span><i class="material-symbols-outlined">content_copy</i> <span>Copy</span></span></button>
             </div>
             <span class="json">
               <label>JSON</label>
               <textarea style="height:300px !important" id="allDt"></textarea>
             </span>
-            <div>
-              <button id="cancelAdvanced" class="grey"><span><i class="material-symbols-outlined">cancel</i> <span>Cancel</span></span></button>
-              <button id="saveAll" class="save red"><span><i class="material-symbols-outlined">save_as</i> <span>&nbsp;Import&nbsp;</span></span></button>
+            <div class="actions">
+              <button id="saveAll" class="blue">Import</button>
             </div>
           </div>
         </details>
@@ -289,26 +356,15 @@
 
       function message(e, obj) {
         const msgEl = document.querySelector("#message");
-        msgEl.innerHTML = e + (!!obj ? `Context: ${JSON.stringify(obj)}` : "");
+        msgEl.textContent = e + (obj ? ` Context: ${JSON.stringify(obj)}` : "");
         msgEl.classList.add("active");
 
         if(SEM.messageTimeout) { clearTimeout(SEM.messageTimeout); }
         SEM.messageTimeout = setTimeout(function() {
           const msgEl = document.querySelector("#message");
-          msgEl.innerHTML = "";
+          msgEl.textContent = "";
           msgEl.classList.remove("active");
         }, 4_000);
-      }
-
-      function loadDt() {
-        message("Loading...");
-        google.script.run
-          .withSuccessHandler(function(dt) { 
-            message("DataTables loaded.");
-            renderDataTables(dt);
-          })
-          .withFailureHandler(message)
-          .fetchDataTables();
       }
 
       function viewDt(idx, config) {
@@ -326,59 +382,140 @@
       }
 
       function recalcDt(idx) {
+        message("Recalculating...");
         google.script.run
           .withUserObject({ "idx": idx })
-          .withSuccessHandler(function() { message("Done."); })
+          .withSuccessHandler(() => message("Done."))
           .withFailureHandler(message)
           .recalcDataTable(idx);
+      }     
 
-        message("Recalculating...");
+      /*
+        Config Management
+
+        Be careful to not allow dirty state on the UI after calling backends:
+        - loadDt, calls fetchDataTables
+        - deleteDt, calls upsertDataTable
+        - saveDt, calls upsertDataTable (with single dt config)
+        - importDt, calls 
+      */
+      function loadDt() {
+        message("Loading...");
+        google.script.run
+          .withSuccessHandler(function(dt) { 
+            renderDataTables(dt);
+            message("DataTables loaded.");
+          })
+          .withFailureHandler(message)
+          .fetchDataTables();
       }
-      
       /** Delete a DataTable
        * idx: the index to delete
        * config: the config.name may change, so pass the config object (by reference)
        */
       function deleteDt(idx, config) {
         if(confirm("Are you sure you want to delete " + config.name + "?")) {
+          message("Deleting...");
           google.script.run
             .withUserObject({ "idx": idx })
             .withSuccessHandler(function(dt) { 
-              message("Deleted.");
               renderDataTables(dt);
+              message("Deleted.");
             })
             .withFailureHandler(message)
             .upsertDataTable(idx, null);
 
-          message("Deleting...");
         }
       }
 
-      function saveDt(idx) {
-        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+      function saveDt(idx, recalc) {
+        const isNew = idx === -1;
+        const domEl = DOMRefs.resolve(idx);
         const json = safeParse(domEl.querySelector("textarea").value, null);
-        if(!!json) {
-           google.script.run
-            .withUserObject({ "idx": idx })
-            .withSuccessHandler(function(dt) { 
-              message("Saved.");
-              renderDataTables(dt);
-            })
-            .withFailureHandler(message)
-            .upsertDataTable(idx, json);
 
-          message("Saving...");
-        } else {
-          message(`Invalid config. Check the JSON.`)
+        if (!json || typeof json !== "object" || Array.isArray(json)) {
+          message("Invalid config.");
+          return;
         }
+        if (!json.range) {
+          message("Must have a range");
+          return;
+        }
+        if (!json.colinput && !json.rowinput) {
+          message("Must have at least a column or row input.");
+          return;
+        }
+        if (isNew && (json.name == null ||
+            (typeof json.name === "string" && !json.name.trim()))) {
+          json.name = "New DataTable";
+        }
+
+        const saveButtons = domEl.querySelectorAll(".save, .saveonly");
+        saveButtons.forEach(button => { button.disabled = true; });
+        message(recalc ? "Saving and calculating..." : "Saving...");
+        google.script.run
+          .withSuccessHandler(function(dt) {
+            saveButtons.forEach(button => { button.disabled = false; });
+            renderDataTables(dt);
+            if (isNew) {
+              domEl.open = false;
+              wireEditorUi(-1, {name: "New DataTable", range: ""});
+              domEl.querySelector(".json").hidden = true;
+            }
+            const savedIdx = isNew ? dt.length - 1 : idx;
+            DOMRefs.dt[savedIdx].open = true;
+            if (recalc) {
+              recalcDt(savedIdx);
+            } else {
+              message("Saved.");
+            }
+          })
+          .withFailureHandler(function(err) {
+            saveButtons.forEach(button => { button.disabled = false; });
+            message(err.message);
+          })
+          .upsertDataTable(idx, json);
       }
 
+      function importDt() {
+        if (DOMRefs.saveAll.disabled) return;
+        const json = DOMRefs.allDt.value;
+        if (!Array.isArray(safeParse(json, null))) {
+          message("Import must be a valid JSON array of DataTables.");
+          return;
+        }
+        if (!confirm("Replace all saved DataTables with this JSON?")) return;
 
+        DOMRefs.saveAll.disabled = true;
+        message("Validating import...");
+        google.script.run
+          .withSuccessHandler(function(dt) {
+            DOMRefs.saveAll.disabled = false;
+            DOMRefs.advancedDt.open = false;
+            renderDataTables(dt);
+            message("Imported.");
+          })
+          .withFailureHandler(function(err) {
+            DOMRefs.saveAll.disabled = false;
+            message(err.message);
+          })
+          .importDataTables(json);
+      }
+
+      /**
+       * Editor event handlers
+       * 
+       *  - captureRange: Button
+       *  - cancelUi: cancel / close button
+       *  - jsonUi: "Edit JSON"
+       *  - onEditForm : fires onInput of ["name","range","colinput","rowinput"]
+       *  - onEditJSON : fires when JSON is edited, rectifies form for idx
+       */
       function captureRange(idx, selector) {
           google.script.run
             .withUserObject({ "idx": idx })
             .withSuccessHandler(function(val, rto) {
-              const domEl = (rto.idx == -1) ? document.querySelector("#addNew") : DOMRefs.dt[rto.idx];
+              const domEl = DOMRefs.resolve(rto.idx);
               const inputEl = domEl.querySelector(selector);
               inputEl.value = val;
               inputEl.dispatchEvent(new Event('input'));
@@ -387,26 +524,27 @@
             .captureRange();
       }
 
-      function detailsUi(idx) {
-        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+      function cancelUi(idx) {
+        const domEl = DOMRefs.resolve(idx);
         domEl.open = false;
       }
 
       function jsonUi(idx) {
-        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        const domEl = DOMRefs.resolve(idx);
         domEl.querySelector(".json").toggleAttribute("hidden");
       }
 
+      // fired from any onInput event on the form
       function onEditForm(idx, config, field) {
-        console.log(`onEditForm(${JSON.stringify(arguments)})`);
-        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        // console.log(`onEditForm(${JSON.stringify(arguments)})`);
+        const domEl = DOMRefs.resolve(idx);
         // a specific input as modified, update config
         const inputEl = domEl.querySelector("input." + field);
         config[field] = inputEl.value;
 
         // update UI
         domEl.querySelector("textarea").value = JSON.stringify(config,undefined,2);
-        // update non-form text in the domEl:
+        // update title text on non-addNew form:
         if(!!domEl.querySelector("span." + field)) {
           domEl.querySelector("span." + field).innerText = config[field] || "[blank]";
         }
@@ -414,11 +552,13 @@
 
       // textarea was modified, rectify all other inputs
       function onEditJson(idx, config) {
-        console.log(`onEditJson(${JSON.stringify(arguments)})`);
-        const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
+        // console.log(`onEditJson(${JSON.stringify(arguments)})`);
+        const domEl = DOMRefs.resolve(idx);
         
         // parse JSON
         const json = safeParse(domEl.querySelector("textarea").value, config);
+
+        if (!json || typeof json !== "object" || Array.isArray(json)) return;
 
         // update config
         config.name = json.name;
@@ -431,36 +571,41 @@
         domEl.querySelector("input.range").value = config.range;
         domEl.querySelector("input.colinput").value = config.colinput;
         domEl.querySelector("input.rowinput").value = config.rowinput;
-        // update title text on existing data tables:
+        // update title text on non-addNew form:
         if(domEl.querySelector("span.name")) {
-          domEl.querySelector("span.name").innerText = config.name;
+          domEl.querySelector("span.name").innerText = config.name || "[blank]";
         }
       }
 
       function wireEditorUi(idx, config) {
-          const domEl = (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx];
-          domEl.querySelector(".cancel").onclick = function(e) { detailsUi(idx); };
-          domEl.querySelector(".save").onclick = function(e) { saveDt(idx); };
-          domEl.querySelector("a").onclick = function(e) { jsonUi(idx); };
+        const domEl = DOMRefs.resolve(idx);
+        domEl.querySelector(".cancel").onclick = function(e) { cancelUi(idx); };
+        domEl.querySelector(".save").onclick = function(e) { saveDt(idx, true); };
+        domEl.querySelector(".saveonly").onclick = function(e) { saveDt(idx, false); };
+        domEl.querySelector("a").onclick = function(e) { jsonUi(idx); };
 
-          // wire up form inputs to update JSON
-          const nameInput = domEl.querySelector("input.name");
-          nameInput.value = config.name || "";
-          nameInput.oninput = function(e) { onEditForm(idx, config, "name"); };
+        // wire up form inputs to update JSON
+        const nameInput = domEl.querySelector("input.name");
+        nameInput.value = config.name || "";
+        nameInput.oninput = function(e) { onEditForm(idx, config, "name"); };
 
-          const rangeInput = domEl.querySelector("input.range");
-          rangeInput.value = config.range || "";
-          rangeInput.oninput = function(e) { onEditForm(idx, config, "range"); };
+        const rangeInput = domEl.querySelector("input.range");
+        rangeInput.value = config.range || "";
+        rangeInput.oninput = function(e) { onEditForm(idx, config, "range"); };
 
-          const colInput = domEl.querySelector("input.colinput");
-          colInput.value = config.colinput || "";
-          colInput.oninput = function(e) { onEditForm(idx, config, "colinput"); };
+        const colInput = domEl.querySelector("input.colinput");
+        colInput.value = config.colinput || "";
+        colInput.oninput = function(e) { onEditForm(idx, config, "colinput"); };
 
-          const rowInput = domEl.querySelector("input.rowinput");
-          rowInput.value = config.rowinput || "";
-          rowInput.oninput = function(e) { onEditForm(idx, config, "rowinput"); };
+        const rowInput = domEl.querySelector("input.rowinput");
+        rowInput.value = config.rowinput || "";
+        rowInput.oninput = function(e) { onEditForm(idx, config, "rowinput"); };
 
-          domEl.querySelector("textarea").oninput = function(e) { onEditJson(idx, config); }
+        domEl.querySelector("textarea").value = JSON.stringify(config, undefined, 2);
+        const title = domEl.querySelector("span.name");
+        if (title) title.textContent = config.name;
+
+        domEl.querySelector("textarea").oninput = function(e) { onEditJson(idx, config); }
 
           // wire up i.click -> activeRange to update forms
           domEl.querySelector(".range+i").onclick = function(e) { captureRange(idx, ".range"); };
@@ -468,21 +613,108 @@
           domEl.querySelector(".rowinput+i").onclick = function(e) { captureRange(idx, ".rowinput"); };
       }
 
+      function reorderDt(fromIdx, toIdx, restoreFocus) {
+        if (fromIdx === toIdx || !DOMRefs.dt[fromIdx] || !DOMRefs.dt[toIdx]) return;
+        const dt = JSON.parse(DOMRefs.allDt.defaultValue);
+        const [config] = dt.splice(fromIdx, 1);
+        dt.splice(toIdx, 0, config);
+        saveTableOrder(dt, () => {
+          if (restoreFocus) DOMRefs.dt[toIdx].querySelector(".dragHandle").focus();
+          message("Order saved.");
+        });
+      }
+
+      function copyDt(idx) {
+        const dt = JSON.parse(DOMRefs.allDt.defaultValue);
+        dt.splice(idx + 1, 0, dt[idx]);
+        saveTableOrder(dt, () => {
+          const copy = DOMRefs.dt[idx + 1];
+          copy.open = true;
+          copy.querySelector("input.name").focus();
+          message("DataTable copied.");
+        });
+      }
+
+      function saveTableOrder(dt, onSaved) {
+        if (DOMRefs.saveAll.disabled) return;
+        DOMRefs.saveAll.disabled = true;
+        message("Saving DataTables...");
+        google.script.run
+          .withSuccessHandler(function(savedDt) {
+            DOMRefs.saveAll.disabled = false;
+            renderDataTables(savedDt);
+            onSaved();
+          })
+          .withFailureHandler(function(err) {
+            DOMRefs.saveAll.disabled = false;
+            message(err.message);
+          })
+          .importDataTables(JSON.stringify(dt), true);
+      }
+
+      /** Use the saved indexes so drag, keyboard, and editor actions agree. */
+      function wireReorderUi(summary, idx) {
+        const handle = summary.querySelector(".dragHandle");
+        handle.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        };
+        handle.onkeydown = (e) => {
+          if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+          e.preventDefault();
+          reorderDt(idx, idx + (e.key === "ArrowUp" ? -1 : 1), true);
+        };
+        handle.ondragstart = (e) => {
+          if (DOMRefs.saveAll.disabled) {
+            e.preventDefault();
+            return;
+          }
+          DOMRefs.dragIdx = idx;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", String(idx));
+        };
+        handle.ondragend = () => { DOMRefs.dragIdx = null; };
+        summary.ondragover = (e) => {
+          const fromIdx = DOMRefs.dragIdx;
+          if (fromIdx === null || fromIdx === idx) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          summary.classList.add(fromIdx > idx ? "dropBefore" : "dropAfter");
+        };
+        summary.ondragleave = (e) => {
+          if (!summary.contains(e.relatedTarget)) {
+            summary.classList.remove("dropBefore", "dropAfter");
+          }
+        };
+        summary.ondrop = (e) => {
+          const fromIdx = DOMRefs.dragIdx;
+          if (fromIdx === null) return;
+          e.preventDefault();
+          summary.classList.remove("dropBefore", "dropAfter");
+          reorderDt(fromIdx, idx, false);
+        };
+      }
+
       function renderDataTables(dt) {
-        DOMRefs.allDt.value = JSON.stringify(dt,undefined,2); 
+        // Keep the loaded list available while Power Tools edits value.
+        DOMRefs.allDt.defaultValue = JSON.stringify(dt, undefined, 2);
+        DOMRefs.allDt.value = DOMRefs.allDt.defaultValue;
         
         // release existing DOM references, remove from document:
         DOMRefs.dt = [];
         DOMRefs.dtList.replaceChildren();
         
         // start rendering new DOM elements:
-        dt.filter(o => o).forEach(function(config, idx) {
-          const strConfig = JSON.stringify(config,undefined,2);
+        dt.forEach(function(config, idx) {
+          if (!config) return;
 
           // create a new detail section
           const domEl = document.createElement("details");
           domEl.innerHTML = 
-          `<summary><span class="name">${config.name}</span></summary>
+          `<summary><button type="button" class="dragHandle iconButton" draggable="true"
+              aria-label="Reorder DataTable with Up and Down arrows"
+              title="Drag to reorder or use Up and Down arrows">::</button><span class="name"></span></summary>
+            <button class="cancel iconButton panelClose material-symbols-outlined" aria-label="Close DataTable" title="Close">close</button>
             <div class="editor">
               <label>Name</label>
               <div>
@@ -506,15 +738,14 @@
               <div><a href="#">Edit JSON</a></div>
               <span class="json" hidden>
                 <label>JSON</label>
-                <textarea>${strConfig}</textarea>
+                <textarea></textarea>
               </span>
-              <div>
-                <button class="recalc"><span><i class="material-symbols-outlined">refresh</i> <span>Recalculate</span></span></button>
-                <button class="delete grey"><span><i class="material-symbols-outlined">delete</i> <span>Delete</span></span></button>
-              </div>
-              <div>
-                <button class="cancel"><span><i class="material-symbols-outlined">cancel</i> <span>Cancel</span></span></button>
-                <button class="save blue"><span><i class="material-symbols-outlined">save</i> <span>Save</span></span></button>
+              <div class="actions">
+                <button class="copy"><span><i class="material-symbols-outlined">content_copy</i> <span>Copy</span></span></button>
+                <button class="delete"><span><i class="material-symbols-outlined">delete</i> <span>Delete</span></span></button>
+                <button class="recalc"><span><i class="material-symbols-outlined">calculate</i> <span>Recalculate</span></span></button>
+                <button class="saveonly"><span><i class="material-symbols-outlined">save</i> <span>Save</span></span></button>
+                <button class="save blue"><span><i class="material-symbols-outlined">auto_fix</i> <span>Save &amp; Calc</span></span></button>
               </div>
             </div>
           `;
@@ -524,9 +755,12 @@
           DOMRefs.dt[idx] = domEl;
           DOMRefs.dtList.appendChild(domEl);
 
-          // wire non-editor handlers with closures on indexes and config (never DOM elements!)
-          domEl.querySelector("summary").onclick = function(e) { viewDt(idx, config); };
+          // wire non-addNew handlers with closures on indexes and config (never DOM elements!)
+          const summary = domEl.querySelector("summary");
+          summary.onclick = function(e) { viewDt(idx, config); };
+          wireReorderUi(summary, idx);
           domEl.querySelector(".recalc").onclick = function(e) { recalcDt(idx); };
+          domEl.querySelector(".copy").onclick = function(e) { copyDt(idx); };
           domEl.querySelector(".delete").onclick = function(e) { deleteDt(idx, config); };
           
           // wire editor handlers
@@ -536,23 +770,40 @@
       }
 
       function init() {
-        // wire up static handlers:
-        DOMRefs.addNew.ontoggle = function(e) { if(e.target.open) { e.target.querySelector("input.range").focus(); } };
-        DOMRefs.cancelAdvanced.onclick = function(e) { DOMRefs.advancedDt.open = false; };
+        // wire up hamburger menu:
+        const menuButton = document.querySelector("#whatifMenu");
+        const menuItems = document.querySelector("#menuItems");
+        function setMenuOpen(open) {
+          menuItems.hidden = !open;
+          menuButton.setAttribute("aria-expanded", String(open));
+        }
+        menuButton.onclick = () => setMenuOpen(menuItems.hidden);
+
+        // power tools
+        document.querySelector("#openAdvanced").onclick = () => {
+          setMenuOpen(false);
+          DOMRefs.advancedDt.open = true;
+        };
+        DOMRefs.advancedDt.querySelector("summary").onclick = (e) => e.preventDefault();
+        DOMRefs.cancelAdvanced.onclick = () => { DOMRefs.advancedDt.open = false; };
+        DOMRefs.saveAll.onclick = () => importDt();
         DOMRefs.copyToClipboard.onclick = function(e) { navigator.clipboard.writeText(DOMRefs.allDt.value); message("Copied."); }
         DOMRefs.dtReload.onclick = loadDt;
-        if (DOMRefs.dtRecalcAll) { DOMRefs.dtRecalcAll.onclick = function() { recalcDt('all'); }; }
+        if (DOMRefs.dtRecalcAll) { DOMRefs.dtRecalcAll.onclick = function() { recalcDt(Infinity); }; }
 
-        // on init, if the selected range looks like a new datatable, pre-fill name and range:
-        wireEditorUi(-1, { "name": "current sheet", "range": "A1" })
+        // wire addNew form:
+        DOMRefs.addNew.ontoggle = function(e) { if(e.target.open) { e.target.querySelector("input.range").focus(); } };
+        wireEditorUi(-1, { "name": "New DataTable", "range": "" })
 
         // load data tables
         loadDt();
       }
 
       const DOMRefs = {
+        resolve: function(idx) { return (idx == -1) ? DOMRefs.addNew : DOMRefs.dt[idx]; },
         // DOM elements corresponding to async loaded datatables
         dt: [],
+        dragIdx: null,
         dtList: document.querySelector("#dtList"),
         dtRecalcAll: document.querySelector("#dtRecalcAll"),
 
@@ -572,3 +823,4 @@
     </script>
   </body>
 </html>
+
