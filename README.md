@@ -1,154 +1,145 @@
-What-If Analysis, Google Sheets Add-On
-===========
+# What-If Analysis, Google Sheets Add-On
 
-Replicates the Excel "What-If Analysis" feature, **Data Tables**.
+Excel-style Data Tables for sensitivity analysis and scenario evaluation in Google Sheets.
 
-In the future, I may add the other Excel features, e.g. **Scenarios**.
+## Overview
+
+When constructing complex spreadsheet models, outputs frequently depend on a sequence of formulas spread across multiple cells. In such models, evaluating different assumptions requires either duplicating the calculation structure across dozens of cells or testing scenarios manually.
+
+What-If Analysis provides automated one-variable and two-variable Data Tables. The add-on substitutes test values into defined input cells, reads the resulting model outputs, and populates a structured results table.
+
+All calculations run securely and privately in your Google Sheet.
+
+## Getting Started
 
 ### Install Add-On
 
-This project is available as an Add-On in the Chrome Web Store:
-
-[Install via Chrome Web Store](https://chrome.google.com/webstore/detail/what-if-analysis/plbdmkgogobniebdohfickjndnechhel)
+1. Install the add-on from the [Chrome Web Store](https://workspace.google.com/marketplace/app/whatif/430660745752).
+2. Open your spreadsheet and click **Extensions > What-If Analysis > Open Sidebar** (or **What-If Analysis > Open Sidebar**).
+3. Specify the table range and target input cells, then select **Save & Calc**.
 
 ### Manual Installation
 
-Alternatively, you can copy the contents of the [`WhatIfAnalysis.gs`](WhatIfAnalysis.gs) file into a new script.
+Alternatively, you can add the source files directly to a Google Sheet's Apps Script project:
 
-Step-by-step:
+1. Within your Google Sheet, open **Extensions > Apps Script**.
+2. Replace `Code.gs` (or create a script file) with the contents of [`src/WhatIfAnalysis.gs`](src/WhatIfAnalysis.gs).
+3. Create an HTML file named `sidepanel` (`sidepanel.html`) and paste the contents of [`src/sidepanel.html`](src/sidepanel.html).
+4. In **Project Settings**, enable **Show "appsscript.json" manifest file in editor**, and update it with [`src/appsscript.json`](src/appsscript.json).
+5. Save the project and reload your Google Sheet.
 
-1. Within your Google Sheet, open the Script Editor (Tools > Script Editor)
-2. Create a new script file, named WhatIfAnalysis.gs (File > New > Script file)
-3. Paste the code from [`WhatIfAnalysis.gs`](WhatIfAnalysis.gs)
-4. Save the script file (File > Save).
-5. Reload your Google Sheet. 
+### Working Example Spreadsheet
 
-### Example Sheet
+Make a copy of the [Reference Example Spreadsheet](https://docs.google.com/spreadsheets/d/1kQ8y3DsnCilScNda1AIcV_-M7TIAWSkdlF__ceZ-W7U/edit?gid=1909248277#gid=1909248277) to inspect working models for:
 
-After installation, make a copy of the [2018 Tax Calculator](https://docs.google.com/spreadsheets/d/1kQ8y3DsnCilScNda1AIcV_-M7TIAWSkdlF__ceZ-W7U/edit?usp=sharing) sheet as a working example.
+- **Loan Amortization:** Evaluating interest rates and terms against monthly payments and cumulative interest.
+- **Tax Liability Schedules:** Measuring progressive tax impacts across filing statuses and income tiers.
 
-### Usage
+## Example Configurations
 
-After installing the add-on, you should have a menu item **What-If Analysis > Create Data Table**.
+### 1. Two-Variable (Bivariate) Matrix
 
-This will try to create a data table from the currently-selected cell range.
+Evaluates a single model output against two variable inputs arranged along the row and column axes:
 
-For example, to create a 2-dimensional (bivariate) Data Table, you need to select a range
-where the model output (formula) is the top-left cell, and where the two sets of values
-are provided along the first row and first column.  The add-on will fill in the rest of the cells.
+| Formula: `=B10` (Model Output) | Term: 10 Years | Term: 20 Years | Term: 30 Years |
+| :--- | ---: | ---: | ---: |
+| **APR: 3.0%** | -$34,794.53 | -$111,214.52 | -$128,497.39 |
+| **APR: 4.0%** | -$46,741.94 | -$152,991.85 | -$178,246.28 |
+| **APR: 5.0%** | -$58,808.37 | -$196,762.13 | -$231,134.73 |
 
-Before (example):
+- Place your model output formula or cell reference in the top-left cell of the table range.
+- Place row test values across the top header row.
+- Place column test values down the leftmost column.
+- Select the table range, assign the corresponding input cells in the sidebar, and run the calculation.
 
-| **2D (bivariate) Data Table** |    |    |    |    |
-| --------------- | -- | -- | -- | -- |
-| first input     | 2  |    |    |    |
-| second input    | 10 |    |    |    |
-| model output  (=first+2*second):  | **22** | 10 | 20 | 30 |
-|                 | 1  |  |  |  |
-|                 | 2  |  |  |  |
-|                 | 3  |  |  |  |
-|                 | 4  |  |  |  |
+### 2. One-Variable (Univariate) Sweep
 
-After (example):
+Varies a single input variable down a column while computing one or more model outputs simultaneously. Place your target output formulas in the top row directly above the result columns:
 
-| **2D (bivariate) Data Table** |    |    |    |    |
-| --------------- | -- | -- | -- | -- |
-| first input     | 2  |    |    |    |
-| second input    | 10 |    |    |    |
-| model output  (=first+2*second):  | **22** | 10 | 20 | 30 |
-|                 | 1  | 21 | 41 | 61 |
-|                 | 2  | 22 | 42 | 62 |
-|                 | 3  | 23 | 43 | 63 |
-|                 | 4  | 24 | 44 | 64 |
+| [Optional Label] | Formula 1: `=B6` (Monthly Pmt) | Formula 2: `=B10` (Total Interest) |
+| :--- | ---: | ---: |
+| **Test Value: 3.0%** | $1,051.38 | -$128,497.39 |
+| **Test Value: 4.0%** | $1,189.57 | -$178,246.28 |
+| **Test Value: 5.0%** | $1,336.49 | -$231,134.73 |
+| **Test Value: 6.0%** | $1,491.42 | -$286,910.92 |
 
-To create a univariate Data Table, select 2 columns, with the model output (i.e. a formula; or a reference to a cell with the model output) in the first row, second-column (), and the test values in the first column.
+- **Where formulas go:** Put your formula (or a direct cell reference to the model output, such as `=B6` or `=B10`) in the **top row** of each output column (columns 2, 3, etc.). The tool reads these formulas to calculate what fills in the cells below.
+- **Where test values go:** Enter your input values down the **leftmost column** starting in row 2.
+- **Top-left cell:** Can be left blank or contain a descriptive text header for the input column.
+- **Sidebar setup:** Designate the driving variable cell in **Column Input**, leave **Row Input** blank, and select **Save & Calc**.
+- **Row-oriented sweeps:** If your test values run horizontally across a row instead, place your formulas down the leftmost column, test values across the top row, and assign the target cell to **Row Input**.
 
-Before (example):
+## Key Features
 
-| Univariate Data Table   |                     |
-| ----------------------- | ------------------- |
-|                         | input:              |
-|                         | 50000               |
-|                         | output (=input\*2): |
-| Test input value column | **100000**              |
-| 20000                   |                     |
-| 50000                   |                     |
-| 75000                   |                     |
-| 100000                  |                     |
-| 150000                  |                     |
-| 200000                  |                     |
-| 300000                  |                     |
-| 500000                  |
+### Named Ranges and Interactive Range Tools
 
+- **Named Range Resolution:** Accepts workbook and sheet-scoped Named Ranges (such as `Example1DataTableRange` and `InterestRate`). If you insert rows or restructure sheets, Named Ranges prevent references from breaking.
+- **One-Click Range Capture:** Click the grid icon next to any field to pull the active sheet selection into your configuration.
+- **Cell Focus:** Click the eye icon next to any coordinate to jump directly to the target range in the sheet.
 
-After (example):
-| Univariate Data Table   |                     |
-| ----------------------- | ------------------- |
-|                         | input:              |
-|                         | 50000               |
-|                         | output (=input\*2): |
-| Test input value column | **100000**              |
-| 20000                   | 40000               |
-| 50000                   | 100000              |
-| 75000                   | 150000              |
-| 100000                  | 200000              |
-| 150000                  | 300000              |
-| 200000                  | 400000              |
-| 300000                  | 600000              |
-| 500000                  | 1000000             |
+### Power Tools and Portability
 
-### Data Refresh
+- **Configuration Portability:** View and export all table configurations as structured JSON records to back up scenarios or migrate setups between workbooks.
+- **Revert to Last Save:** Discard experimental table edits and restore the last saved configuration state with one click.
+- **Batch Management:** Save, delete, rename, copy, and reorder multiple tables across sheets from a single unified panel.
 
-For performance reasons, Data Tables are not recalculated automatically.
+## Practical Modeling Considerations
 
-Use the **What-If Analysis > Refresh Data Tables** menu item to refresh all data tables.
+1. **When to use Data Tables versus direct formulas:** For simple single-step relationships, writing direct formulas across the grid calculates faster. What-If Data Tables are designed for multi-cell dependencies, loan schedules, or tiered bracket lookups where condensing the logic into a single formula is impractical or difficult to audit.
+2. **Multi-output evaluation in one sweep:** In one-variable tables, multiple formulas can be positioned across adjacent output columns. A single parameter sweep can evaluate multiple related metrics side by side without setting up separate tables.
+3. **Manual recalculation preserves performance:** Tables do not recalculate on every keystroke. This prevents large scenario tables from introducing spreadsheet calculation latency during normal edits. When base assumptions change, recalculation is triggered on demand through the sidebar.
 
-You can also delete data tables by deleting the associated Named Range (**Data > Named Ranges**), 
-which will be named in the form of *DataTable_RxCy*.  The deleted cell range will no longer be 
-considered a "Data Table" and you may freely edit / clear the cells as normal.
+## Development & DevOps
 
-### Help - How to use WhatIfAnalysis.
+### Project Structure
 
-Selected range must be at least 2 columns.
-                               
-**For a univariat Data Table (1 input variable):**
-Top left cell can contain any text column header for the test values which need to follow downwards on the same leftmost column. The header for the second column needs to be a formula giving the model output (based on the input variable), or reference a cell with the model output.
-      
-**For a 2D (bivariat) Data Table (2 input variables):**
-Top left cell needs to be a formula giving the model output (based on the input variables), or reference a cell with the model output. Furthermore, the leftmost column needs to have the various test values (for the row input variable) listed downwards. Also, the topmost row needs to have more than 1 column in addition to the leftmost column, and they need to contain test values (for the column input variable).
-    
-WhatIfAnalysis will in both cases fill in the remaining part of the matrix. It will insert test values into the cells which you specify as input variable(s), and fill in the matrix with the corresponding model output results.
-    
-### When to use WhatIfAnalysis, and when to use other approaches.
-    
-**For simple models then WhatIfAnalysis is not needed**, and results can be obtained much faster with repeating a formula normally throughout the matrix (in-spreadsheet formulas are generally faster than scripts like this WhatIfAnalysis script). For a bivariat Data Table (starting at top left cell A1) based on for instance a model like =(ROW_VARIABLE_CELL + COL_VARIABLE_CELL * 2), then the formula =$A2+B$1*2 could be input to B2 (cell 2,2 in the matrix) and dragged downwards to fill the entire first column, and then dragged to the right, to fill the entire matrix.
-    
-**But in more complex models** the output can be the result of a chain of formulas throughout various cells, and then WhatIfAnalysis is particularly useful. In some cases though, a conjoined formula can be reconstructed by going to the end output cell and into the formula there successively inserting the formulas contained in the cells it referenced. Then the approach mentioned in the simple model scenario above will work. This can give a significant speed increase (and allow for instantaneous and automatically refreshing values when changes occur), compared to using WhatIfAnalysis (which must be manually run to recalculate values). Although this approach is always theoretically possible, it is not always practically feasible (i.e. worth the effort). Typically in cases where several formulas in the chain of formulas specify ranges of cells which again include other formulas. Then WhatIfAnalysis comes handy.
-    
-**For the ultimately fastest approach with a complex model**, consider representing it entirely in code, and have it perform the calculations there (without relying on the spreadsheet). To do that, go to Tools -> Script editor, and write your own script using JavaScript. Your custom function in your script should take in all your input data (no formulas) and do all the calculations in code (instead of using spreadsheet formulas). This way the script can perform all the calculations in memory, without interacting with the spreadsheet at every step like WhatIfAnalysis does (which takes some time every time input values are set in the spreadsheet and output values are recorded from it). When your script has calculated all the outputs it can merely output them all to the spreadsheet at once (thus reducing the interactions with the spreadsheet to the minimum).
-  
+- [`src/WhatIfAnalysis.gs`](src/WhatIfAnalysis.gs) — Google Apps Script backend (`V8` runtime, `@OnlyCurrentDoc`)
+- [`src/sidepanel.html`](src/sidepanel.html) — Sidebar UI (HTML/CSS/JS)
+- [`src/appsscript.json`](src/appsscript.json) — Apps Script manifest and minimal OAuth scopes
+- [`test/what-if-analysis.test.js`](test/what-if-analysis.test.js) — Automated unit/integration tests using Node's built-in test runner
 
+### Build
 
-### License
+No compilation or bundling step is required. The files in [`src/`](src/) are plain Google Apps Script (`.gs`, `.html`, and `appsscript.json`) and are deployed directly.
 
-MIT License
+### Test
 
-Copyright (c) 2018 Jeffrey Yang
+The test suite uses Node.js's built-in `node:test`, `node:assert/strict`, and `node:vm` modules with no external dependencies.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+```bash
+node --test test/what-if-analysis.test.js
+```
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+### Deploy
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+You can deploy changes to Google Apps Script using [`clasp`](https://github.com/google/clasp):
+
+1. Install and authenticate `clasp` (one-time setup):
+
+   ```bash
+   npm install -g @google/clasp
+   clasp login
+   ```
+
+2. Point `.clasp.json` (git-ignored or local) to your Apps Script project with `rootDir` set to `src`:
+
+   ```json
+   {
+     "scriptId": "<YOUR_APPS_SCRIPT_ID>",
+     "rootDir": "src"
+   }
+   ```
+
+3. Push source files and create a new versioned deployment:
+
+   ```bash
+   clasp push
+   clasp deploy -d "Describe release"
+   ```
+
+For Workspace Marketplace updates, create a new deployment version in Apps Script and update the deployment version in the Google Workspace Marketplace SDK configuration in Google Cloud Console.
+
+## Privacy & License
+
+- [Privacy Policy](PRIVACY.md)
+- [MIT License](LICENSE) — Copyright (c) 2018 Jeffrey Yang
